@@ -58,6 +58,9 @@ require_once DARSNA_TUTOR_REG_PLUGIN_DIR . 'includes/class-darsna-tutor-registra
  * @return   boolean  True if LatePoint is fully loaded, false otherwise.
  */
 function darsna_tutor_reg_is_latepoint_loaded() {
+    if (!did_action('latepoint_init') && !did_action('latepoint_loaded')) {
+        return false;
+    }
     return class_exists('LatePointAgentModel');
 }
 
@@ -71,21 +74,26 @@ function darsna_tutor_reg_is_latepoint_loaded() {
  * @since    1.0.0
  */
 function darsna_tutor_reg_run() {
-    // Only initialize if LatePoint is properly loaded
-    if (darsna_tutor_reg_is_latepoint_loaded()) {
-        $plugin = new Darsna_Tutor_Registration();
-        $plugin->run();
-    } else {
-        // Log the issue but don't prevent plugin from loading basic functionality
-        error_log('Darsna Tutor Reg: LatePoint plugin classes not fully loaded yet. Some functionality may be limited.');
-        // We'll still initialize the plugin but with limited functionality
-        $plugin = new Darsna_Tutor_Registration();
-        $plugin->run();
+    static $plugin_initialized = false;
+    
+    // Only initialize once
+    if ($plugin_initialized) {
+        return;
     }
+    
+    $plugin_initialized = true;
+    $plugin = new Darsna_Tutor_Registration();
+    $plugin->run();
 }
 
-// Try to initialize as late as possible to ensure LatePoint is loaded
-add_action('plugins_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
+// Remove the existing hooks
+// add_action('plugins_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
+// add_action('wp_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
 
-// Fallback initialization if LatePoint still isn't loaded by plugins_loaded
-add_action('wp_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
+// Use later hooks
+add_action('wp', 'darsna_tutor_reg_run');
+add_action('admin_init', 'darsna_tutor_reg_run');
+
+// For AJAX requests
+add_action('wp_ajax_nopriv_any_action', 'darsna_tutor_reg_run', 5);
+add_action('wp_ajax_any_action', 'darsna_tutor_reg_run', 5);

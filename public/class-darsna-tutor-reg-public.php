@@ -460,7 +460,16 @@ class Darsna_Tutor_Reg_Public {
      * @access private
      * @param int $user_id WordPress User ID.
      */
-    private function sync_latepoint_data( $user_id ) {
+    private function sync_latepoint_data($user_id) {
+        // Double-check LatePoint availability
+        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
+            error_log('Darsna Tutor Reg: Delaying LatePoint sync for user ' . $user_id);
+            if (!wp_next_scheduled('darsna_retry_latepoint_sync', array($user_id))) {
+                wp_schedule_single_event(time() + 60, 'darsna_retry_latepoint_sync', array($user_id));
+            }
+            return;
+        }
+
         // Check if LatePoint is properly loaded
         if ( ! function_exists('darsna_tutor_reg_is_latepoint_loaded') || ! darsna_tutor_reg_is_latepoint_loaded() ) {
             error_log('Darsna Tutor Reg: LatePointAgentModel class not found. Cannot sync user ' . $user_id);
@@ -698,5 +707,33 @@ class Darsna_Tutor_Reg_Public {
         $new_items .= '<li class="menu-item menu-item-type-custom menu-item-object-custom"><a href="' . esc_url( $logout_url ) . '">' . __( 'Logout', 'darsna-tutor-reg' ) . '</a></li>';
 
         return $items . $new_items;
+    }
+
+    /**
+     * Register retry hook for LatePoint sync
+     */
+    public function register_retry_hook() {
+        add_action('darsna_retry_latepoint_sync', array($this, 'retry_sync_latepoint_data'), 10, 1);
+    }
+
+    /**
+     * Retry syncing data with LatePoint
+     */
+    public function retry_sync_latepoint_data($user_id) {
+        if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
+            $this->sync_latepoint_data($user_id);
+        } else {
+            $retry_count = get_user_meta($user_id, '_darsna_latepoint_sync_retries', true);
+            $retry_count = !empty($retry_count) ? intval($retry_count) + 1 : 1;
+            
+            if ($retry_count < 5) {
+                update_user_meta($user_id, '_darsna_latepoint_sync_retries', $retry_count);
+                wp_schedule_single_event(time() + 60, 'darsna_retry_latepoint_sync', array($user_id));
+                error_log("Darsna Tutor Reg: Retry {$retry_count} for user {$user_id}");
+            } else {
+                error_log("Darsna Tutor Reg: Sync failed after {$retry_count} retries");
+                delete_user_meta($user_id, '_darsna_latepoint_sync_retries');
+            }
+        }
     }
 }

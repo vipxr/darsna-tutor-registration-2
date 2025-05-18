@@ -159,7 +159,7 @@ class Darsna_Tutor_Registration {
      * @access   private
      */
     private function define_hooks() {
-        $plugin_public = new Darsna_Tutor_Reg_Public( $this->get_plugin_name(), $this->get_version() );
+        $plugin_public = new Darsna_Tutor_Reg_Public($this->get_plugin_name(), $this->get_version());
         $plugin_admin = new Darsna_Tutor_Reg_Admin( $this->get_plugin_name(), $this->get_version() );
 
         // First add all basic hooks
@@ -180,6 +180,9 @@ class Darsna_Tutor_Registration {
 
         // User deletion cleanup
         $this->loader->add_action( 'delete_user', $plugin_public, 'remove_agent_on_user_delete', 10, 1 );
+    
+        // Add retry hook registration
+        $this->loader->add_action('init', $plugin_public, 'register_retry_hook');
     }
 
     /**
