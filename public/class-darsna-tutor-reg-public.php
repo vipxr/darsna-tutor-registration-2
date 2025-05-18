@@ -127,7 +127,9 @@ class Darsna_Tutor_Reg_Public {
             $user_meta = get_user_meta( $user_id );
             $current_user = wp_get_current_user();
 
-            $data['full_name'] = trim( ($user_meta['first_name'][0] ?? '') . ' ' . ($user_meta['last_name'][0] ?? '') );
+            $first_name = isset($user_meta['first_name'][0]) ? $user_meta['first_name'][0] : '';
+            $last_name = isset($user_meta['last_name'][0]) ? $user_meta['last_name'][0] : '';
+            $data['full_name'] = trim($first_name . ' ' . $last_name);
             if(empty(trim($data['full_name']))) $data['full_name'] = $current_user->display_name;
 
             $data['account_type'] = ( in_array( 'tutor', (array) $current_user->roles, true ) || in_array( 'latepoint_agent', (array) $current_user->roles, true ) ) ? 'latepoint_agent' : 'student';
@@ -316,8 +318,8 @@ class Darsna_Tutor_Reg_Public {
             if ( ! isset( $_POST['hourly_rate'] ) || floatval( $_POST['hourly_rate'] ) <= 0 ) {
                 $errors->add( 'hourly_rate_error', __( 'A valid Hourly Rate is required for tutors.', 'darsna-tutor-reg' ) );
             }
-            if ( empty( $_POST['subject'] ) || ! ctype_digit( strval( $_POST['subject'] ) ) ) { // Changed from 'subjects' to 'subject' and validation logic
-                $errors->add( 'subject_error', __( 'Please select a Subject you teach.', 'darsna-tutor-reg' ) ); // Changed error key and message
+            if ( empty( $_POST['subject'] ) || (isset($_POST['subject']) && !ctype_digit( (string)($_POST['subject']) )) ) {
+                $errors->add( 'subject_error', __( 'Please select a Subject you teach.', 'darsna-tutor-reg' ) );
             }
             if ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) {
                 if ( ! isset( $_POST['urgent_hourly_rate'] ) || floatval( $_POST['urgent_hourly_rate'] ) <= 0 ) {
@@ -359,8 +361,8 @@ class Darsna_Tutor_Reg_Public {
             if ( ! isset( $_POST['hourly_rate'] ) || floatval( $_POST['hourly_rate'] ) <= 0 ) {
                 $errors->add( 'hourly_rate_error', __( 'A valid Hourly Rate is required for tutors.', 'darsna-tutor-reg' ) );
             }
-            if ( empty( $_POST['subject'] ) || ! ctype_digit( strval( $_POST['subject'] ) ) ) { // Changed from 'subjects' to 'subject' and validation logic
-                $errors->add( 'subject_error', __( 'Please select a Subject you teach.', 'darsna-tutor-reg' ) ); // Changed error key and message
+            if ( empty( $_POST['subject'] ) || (isset($_POST['subject']) && !ctype_digit( (string)($_POST['subject']) )) ) {
+                $errors->add( 'subject_error', __( 'Please select a Subject you teach.', 'darsna-tutor-reg' ) );
             }
             if ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) {
                 if ( ! isset( $_POST['urgent_hourly_rate'] ) || floatval( $_POST['urgent_hourly_rate'] ) <= 0 ) {
@@ -410,7 +412,7 @@ class Darsna_Tutor_Reg_Public {
             $user->set_role( 'tutor' ); // Set WordPress role to 'tutor'
 
             update_user_meta( $user_id, 'hourly_rate', isset( $_POST['hourly_rate'] ) ? floatval( $_POST['hourly_rate'] ) : 0 );
-            $subject = ( ! empty( $_POST['subject'] ) && ctype_digit( strval( $_POST['subject'] ) ) ) ? intval( $_POST['subject'] ) : ''; // Changed from 'subjects' to 'subject'
+            $subject = ( ! empty( $_POST['subject'] ) && isset($_POST['subject']) && ctype_digit( (string)($_POST['subject']) ) ) ? intval( $_POST['subject'] ) : ''; // Changed from 'subjects' to 'subject'
             update_user_meta( $user_id, 'darsna_subject', $subject ); // Changed meta key to 'darsna_subject'
             update_user_meta( $user_id, 'urgent_help', ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) ? 'yes' : 'no' );
             update_user_meta( $user_id, 'urgent_hourly_rate', ( isset( $_POST['urgent_hourly_rate'] ) ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0 );

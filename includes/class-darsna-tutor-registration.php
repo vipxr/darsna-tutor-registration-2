@@ -73,16 +73,19 @@ class Darsna_Tutor_Registration {
         }
         $this->plugin_name = 'darsna-tutor-reg';
 
+        $this->load_dependencies();
+
         // Check if LatePoint plugin is active and its classes are loaded
         if (!class_exists('\LatePoint\Loader')) {
             add_action('admin_notices', function() {
                 echo '<div class="notice notice-error"><p>Darsna Tutor Reg: LatePoint plugin classes not fully loaded yet. Some functionality may be limited.</p></div>';
             });
-            return;
+            // Still define basic hooks but skip LatePoint-dependent ones
+            $this->define_basic_hooks();
+        } else {
+            // Define all hooks including LatePoint-dependent ones
+            $this->define_hooks();
         }
-
-        $this->load_dependencies();
-        $this->define_hooks();
     }
 
     /**
@@ -114,7 +117,13 @@ class Darsna_Tutor_Registration {
      * @since    1.0.1
      * @access   private
      */
-    private function define_hooks() {
+    /**
+     * Define basic hooks that don't depend on LatePoint plugin.
+     *
+     * @since    1.0.1
+     * @access   private
+     */
+    private function define_basic_hooks() {
         $plugin_public = new Darsna_Tutor_Reg_Public( $this->get_plugin_name(), $this->get_version() );
         $plugin_admin = new Darsna_Tutor_Reg_Admin( $this->get_plugin_name(), $this->get_version() );
 
@@ -125,8 +134,39 @@ class Darsna_Tutor_Registration {
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_styles' );
         $this->loader->add_action( 'wp_enqueue_scripts', $plugin_public, 'enqueue_scripts' );
 
+        // WooCommerce login and password tweaks
+        $this->loader->add_filter( 'gettext', $plugin_public, 'tweak_wc_login_text', 20, 3 );
+        $this->loader->add_action( 'wp_footer', $plugin_public, 'tweak_wc_login_form_js' );
+        $this->loader->add_filter( 'woocommerce_min_password_strength', $plugin_public, 'disable_password_strength_meter' );
+        $this->loader->add_action( 'wp_print_scripts', $plugin_public, 'dequeue_password_strength_meter', 100 );
+
+        // Menu links
+        $this->loader->add_filter( 'wp_nav_menu_items', $plugin_public, 'add_dashboard_logout_menu_links', 99, 2 );
+
+        // Always register form fields regardless of LatePoint status
+        $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
+        $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
+        $this->loader->add_filter( 'woocommerce_registration_errors', $plugin_public, 'validate_tutor_fields', 10, 3 );
+        $this->loader->add_action( 'woocommerce_save_account_details_errors', $plugin_public, 'validate_tutor_fields_update', 10, 2 );
+        $this->loader->add_action( 'woocommerce_created_customer', $plugin_public, 'save_tutor_profile', 20 );
+        $this->loader->add_action( 'woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20 );
+    }
+
+    /**
+     * Define all hooks including those that depend on LatePoint plugin.
+     *
+     * @since    1.0.1
+     * @access   private
+     */
+    private function define_hooks() {
+        $plugin_public = new Darsna_Tutor_Reg_Public( $this->get_plugin_name(), $this->get_version() );
+        $plugin_admin = new Darsna_Tutor_Reg_Admin( $this->get_plugin_name(), $this->get_version() );
+
+        // First add all basic hooks
+        $this->define_basic_hooks();
+
+        // Then add LatePoint-dependent hooks
         // WooCommerce registration and account fields
-        // Using static flag in the render_tutor_fields function to prevent duplicate rendering
         $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
 
@@ -140,15 +180,6 @@ class Darsna_Tutor_Registration {
 
         // User deletion cleanup
         $this->loader->add_action( 'delete_user', $plugin_public, 'remove_agent_on_user_delete', 10, 1 );
-
-        // WooCommerce login and password tweaks
-        $this->loader->add_filter( 'gettext', $plugin_public, 'tweak_wc_login_text', 20, 3 );
-        $this->loader->add_action( 'wp_footer', $plugin_public, 'tweak_wc_login_form_js' );
-        $this->loader->add_filter( 'woocommerce_min_password_strength', $plugin_public, 'disable_password_strength_meter' );
-        $this->loader->add_action( 'wp_print_scripts', $plugin_public, 'dequeue_password_strength_meter', 100 );
-
-        // Menu links
-        $this->loader->add_filter( 'wp_nav_menu_items', $plugin_public, 'add_dashboard_logout_menu_links', 99, 2 );
     }
 
     /**
