@@ -73,6 +73,14 @@ class Darsna_Tutor_Registration {
         }
         $this->plugin_name = 'darsna-tutor-reg';
 
+        // Check if LatePoint plugin is active and its classes are loaded
+        if (!class_exists('\LatePoint\Loader')) {
+            add_action('admin_notices', function() {
+                echo '<div class="notice notice-error"><p>Darsna Tutor Reg: LatePoint plugin classes not fully loaded yet. Some functionality may be limited.</p></div>';
+            });
+            return;
+        }
+
         $this->load_dependencies();
         $this->define_hooks();
     }
