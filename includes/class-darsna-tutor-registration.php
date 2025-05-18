@@ -119,7 +119,7 @@ class Darsna_Tutor_Registration {
 
         // WooCommerce registration and account fields
         // Using static flag in the render_tutor_fields function to prevent duplicate rendering
-        $this->loader->add_action( 'woocommerce_register_form', $plugin_public, 'render_tutor_fields', 20 );
+        $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
 
         // Validate fields
