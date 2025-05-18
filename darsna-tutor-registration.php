@@ -23,6 +23,31 @@ define( 'DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DARSNA_TUTOR_REG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'DARSNA_URGENT_HELP_SERVICE_ID', 1); // Service ID for urgent help in LatePoint
 
+// Debugging function to log potential null values
+function darsna_debug_log($message) {
+    error_log('[DARSNA DEBUG] ' . $message);
+}
+
+// Add an error handler to get more detailed information
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    if (strpos($errstr, 'strlen(): Passing null to parameter') !== false) {
+        $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10);
+        $traceLog = "Error: $errstr in $errfile on line $errline\n";
+        $traceLog .= "Backtrace:\n";
+        foreach ($trace as $i => $step) {
+            $traceLog .= "#$i " . 
+                        (isset($step['file']) ? $step['file'] : '[internal function]') . 
+                        (isset($step['line']) ? "({$step['line']})" : '') . 
+                        ": " . 
+                        (isset($step['class']) ? $step['class'] . $step['type'] : '') . 
+                        $step['function'] . "()\n";
+        }
+        error_log($traceLog);
+        return false;
+    }
+    return false;
+}, E_DEPRECATED);
+
 // Include main plugin class
 require_once DARSNA_TUTOR_REG_PLUGIN_DIR . 'includes/class-darsna-tutor-registration.php';
 

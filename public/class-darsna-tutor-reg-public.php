@@ -299,6 +299,7 @@ class Darsna_Tutor_Reg_Public {
      * @param string   $email       User's email.
      * @return WP_Error             Modified errors object.
      */
+    // In validate_tutor_fields()
     public function validate_tutor_fields($errors, $username, $email) {
         if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
             $errors->add( 'nonce_error', __( 'Security check failed. Please refresh and try again.', 'darsna-tutor-reg' ) );
@@ -309,6 +310,19 @@ class Darsna_Tutor_Reg_Public {
             $errors->add('full_name_error', __('Full Name is required.', 'darsna-tutor-reg'));
         }
 
+        // Add debug before full_name check
+        if (!isset($_POST['full_name'])) {
+            darsna_debug_log("full_name is not set in _POST");
+        } else {
+            darsna_debug_log("full_name before check: " . gettype($_POST['full_name']) . " - " . (is_null($_POST['full_name']) ? "NULL" : $_POST['full_name']));
+        }
+
+        // Add debug before account_type sanitization
+        if (isset($_POST['account_type'])) {
+            darsna_debug_log("account_type before sanitize: " . gettype($_POST['account_type']) . " - " . (is_null($_POST['account_type']) ? "NULL" : $_POST['account_type']));
+        } else {
+            darsna_debug_log("account_type is not set in _POST");
+        }
         $account_type = isset($_POST['account_type']) ? sanitize_text_field(wp_unslash($_POST['account_type'])) : '';
         if ( ! in_array( $account_type, array( 'student', 'latepoint_agent' ), true ) ) {
             $errors->add( 'account_type_error', __( 'Please select a valid Account Type (Student or Tutor).', 'darsna-tutor-reg' ) );
