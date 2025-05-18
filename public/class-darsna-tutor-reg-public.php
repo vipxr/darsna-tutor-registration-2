@@ -110,16 +110,16 @@ class Darsna_Tutor_Reg_Public {
         }
 
         $data = array(
-            'full_name'    => isset( $_POST['full_name'] ) ? sanitize_text_field( wp_unslash( $_POST['full_name'] ) ) : '',
-            'account_type' => isset( $_POST['account_type'] ) ? sanitize_text_field( wp_unslash( $_POST['account_type'] ) ) : 'student',
-            'hourly_rate'  => isset( $_POST['hourly_rate'] ) ? floatval( $_POST['hourly_rate'] ) : 0,
-            'urgent_help'  => isset( $_POST['urgent_help'] ) ? 'yes' : 'no',
-            'urgent_rate'  => isset( $_POST['urgent_hourly_rate'] ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0,
-            'subject'      => '', // Changed from 'subjects' to 'subject'
+            'full_name'    => isset($_POST['full_name']) ? sanitize_text_field(wp_unslash($_POST['full_name'])) : '',
+            'account_type' => isset($_POST['account_type']) ? sanitize_text_field(wp_unslash($_POST['account_type'])) : 'student',
+            'hourly_rate'  => isset($_POST['hourly_rate']) ? floatval($_POST['hourly_rate']) : 0,
+            'urgent_help'  => isset($_POST['urgent_help']) ? 'yes' : 'no',
+            'urgent_rate'  => isset($_POST['urgent_hourly_rate']) ? floatval($_POST['urgent_hourly_rate']) : 0,
+            'subject'      => '',
         );
 
-        if ( ! empty( $_POST['subject'] ) ) { // Changed from 'subjects'
-            $data['subject'] = intval( $_POST['subject'] ); // Store single subject ID
+        if (isset($_POST['subject']) && !empty($_POST['subject'])) {
+            $data['subject'] = intval($_POST['subject']);
         }
 
         if ( is_user_logged_in() && is_wc_endpoint_url( 'edit-account' ) ) {
@@ -299,17 +299,17 @@ class Darsna_Tutor_Reg_Public {
      * @param string   $email       User's email.
      * @return WP_Error             Modified errors object.
      */
-    public function validate_tutor_fields( $errors, $username, $email ) {
+    public function validate_tutor_fields($errors, $username, $email) {
         if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
             $errors->add( 'nonce_error', __( 'Security check failed. Please refresh and try again.', 'darsna-tutor-reg' ) );
             return $errors;
         }
 
-        if ( empty( $_POST['full_name'] ) ) {
-            $errors->add( 'full_name_error', __( 'Full Name is required.', 'darsna-tutor-reg' ) );
+        if (!isset($_POST['full_name']) || empty($_POST['full_name'])) {
+            $errors->add('full_name_error', __('Full Name is required.', 'darsna-tutor-reg'));
         }
 
-        $account_type = isset( $_POST['account_type'] ) ? sanitize_text_field( $_POST['account_type'] ) : '';
+        $account_type = isset($_POST['account_type']) ? sanitize_text_field(wp_unslash($_POST['account_type'])) : '';
         if ( ! in_array( $account_type, array( 'student', 'latepoint_agent' ), true ) ) {
             $errors->add( 'account_type_error', __( 'Please select a valid Account Type (Student or Tutor).', 'darsna-tutor-reg' ) );
         }
@@ -318,8 +318,8 @@ class Darsna_Tutor_Reg_Public {
             if ( ! isset( $_POST['hourly_rate'] ) || floatval( $_POST['hourly_rate'] ) <= 0 ) {
                 $errors->add( 'hourly_rate_error', __( 'A valid Hourly Rate is required for tutors.', 'darsna-tutor-reg' ) );
             }
-            if ( empty( $_POST['subject'] ) || (isset($_POST['subject']) && !ctype_digit( (string)($_POST['subject']) )) ) {
-                $errors->add( 'subject_error', __( 'Please select a Subject you teach.', 'darsna-tutor-reg' ) );
+            if (!isset($_POST['subject']) || empty($_POST['subject']) || !is_numeric($_POST['subject'])) {
+                $errors->add('subject_error', __('Please select a Subject you teach.', 'darsna-tutor-reg'));
             }
             if ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) {
                 if ( ! isset( $_POST['urgent_hourly_rate'] ) || floatval( $_POST['urgent_hourly_rate'] ) <= 0 ) {
@@ -379,7 +379,7 @@ class Darsna_Tutor_Reg_Public {
      * @since 1.0.1
      * @param int $user_id User ID.
      */
-    public function save_tutor_profile( $user_id ) {
+    public function save_tutor_profile($user_id) {
         if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
             // Log error or add admin notice, but don't necessarily stop other WooCommerce processes.
             error_log( 'Darsna Tutor Reg: Nonce verification failed during save_tutor_profile for user ID ' . $user_id );
