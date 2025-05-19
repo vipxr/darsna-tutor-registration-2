@@ -505,8 +505,9 @@ class Darsna_Tutor_Reg_Public {
      * @since 1.0.1
      * @access private
      * @param int $user_id WordPress User ID.
-     */
-    private function sync_latepoint_data($user_id) {
+n     */
+a    private function sync_latepoint_data($user_id) {
+        darsna_debug_log("LatePoint classes loaded check: LatePointAgentModel exists: " . (class_exists('LatePointAgentModel') ? 'Yes' : 'No')); // This is the added debugging line
         error_log('Attempting to sync user ' . $user_id . ' with LatePoint. LatePointAgentModel exists: ' . (class_exists('LatePointAgentModel') ? 'Yes' : 'No'));
         darsna_debug_log("sync_latepoint_data called for user_id: " . $user_id);
 
@@ -846,23 +847,49 @@ class Darsna_Tutor_Reg_Public {
     public function process_pending_latepoint_syncs() {
         // Only run if LatePoint is available now
         if (!class_exists('LatePointAgentModel')) {
+            darsna_debug_log("process_pending_latepoint_syncs: LatePointAgentModel class not found. Aborting.");
+            return;
+        }
+    
+        // Get the pending syncs from options (not user meta)
+        $pending_syncs = get_option('darsna_pending_latepoint_syncs', array());
+    
+        if (empty($pending_syncs)) {
+            darsna_debug_log("process_pending_latepoint_syncs: No pending syncs found.");
             return;
         }
         
-        // Query users with pending sync flag
-        $args = array(
-            'meta_key' => '_darsna_pending_latepoint_sync',
-            'meta_value' => 'yes',
-            'fields' => 'ID',
-        );
-        
-        $users = get_users($args);
-        
-        foreach ($users as $user_id) {
-            // Process the sync
-            $this->sync_latepoint_data($user_id);
-            // Remove the pending flag
-            delete_user_meta($user_id, '_darsna_pending_latepoint_sync');
+        darsna_debug_log("process_pending_latepoint_syncs: Processing " . count($pending_syncs) . " pending LatePoint syncs");
+    
+        $still_pending = $pending_syncs; // Work with a copy
+
+        foreach ($pending_syncs as $key => $user_id) {
+            // Ensure user_id is an integer
+            $user_id = intval($user_id);
+            if ($user_id <= 0) {
+                darsna_debug_log("process_pending_latepoint_syncs: Invalid user_id found in pending list: " . $user_id . ". Removing.");
+                unset($still_pending[$key]); // Remove invalid ID
+                continue;
+            }
+
+            darsna_debug_log("process_pending_latepoint_syncs: Processing pending sync for user_id: " . $user_id);
+            
+            // Check if user still exists
+            if (get_userdata($user_id)) {
+                $this->sync_latepoint_data($user_id);
+                // Remove from the pending list after successful processing attempt
+                unset($still_pending[$key]);
+                darsna_debug_log("process_pending_latepoint_syncs: Sync attempted for user_id: " . $user_id . ". Removing from pending list.");
+            } else {
+                darsna_debug_log("process_pending_latepoint_syncs: User ID " . $user_id . " no longer exists. Removing from pending list.");
+                unset($still_pending[$key]); // Remove non-existent user
+            }
         }
+    
+        // Update the option with remaining users (if any)
+        if (count($still_pending) < count($pending_syncs)) { // Only update if changes were made
+            update_option('darsna_pending_latepoint_syncs', array_values($still_pending)); // Re-index array
+        }
+        darsna_debug_log("process_pending_latepoint_syncs: Completed processing. Remaining pending syncs: " . count($still_pending));
     }
 }

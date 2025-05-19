@@ -90,10 +90,55 @@ function darsna_tutor_reg_run() {
 // add_action('plugins_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
 // add_action('wp_loaded', 'darsna_tutor_reg_run', PHP_INT_MAX);
 
-// Use later hooks
-add_action('wp', 'darsna_tutor_reg_run');
-add_action('admin_init', 'darsna_tutor_reg_run');
+// Use later hooks with priority
+add_action('wp_loaded', 'darsna_tutor_reg_run', 20);
+add_action('admin_init', 'darsna_tutor_reg_run', 20);
 
 // For AJAX requests
 add_action('wp_ajax_nopriv_any_action', 'darsna_tutor_reg_run', 5);
 add_action('wp_ajax_any_action', 'darsna_tutor_reg_run', 5);
+
+// Add direct retry mechanism
+if (!function_exists('darsna_check_pending_syncs')) {
+    function darsna_check_pending_syncs() {
+        // Check if LatePoint is likely loaded enough to have its classes available
+        // and if the Darsna_Tutor_Registration class (and its public methods) are available
+        if (class_exists('LatePointAgentModel') && class_exists('Darsna_Tutor_Registration')) {
+            $pending_syncs = get_option('darsna_pending_latepoint_syncs', array());
+            if (!empty($pending_syncs)) {
+                darsna_debug_log("darsna_check_pending_syncs: Found " . count($pending_syncs) . " pending LatePoint syncs on init.");
+                
+                // Get an instance of the public class to call process_pending_latepoint_syncs
+                // This assumes Darsna_Tutor_Registration has a way to get an instance of Darsna_Tutor_Reg_Public
+                // or that process_pending_latepoint_syncs can be called statically or via a global instance.
+                // For simplicity, if Darsna_Tutor_Registration instantiates Darsna_Tutor_Reg_Public and stores it,
+                // we might need a more robust way to access it here.
+                // A common pattern is to have a static getter or a global instance.
+
+                // Simpler approach: Directly instantiate Darsna_Tutor_Reg_Public if its constructor is light
+                // and it doesn't rely on the main plugin class's full initialization for this specific task.
+                // This requires Darsna_Tutor_Reg_Public to be included.
+                if (file_exists(DARSNA_TUTOR_REG_PLUGIN_DIR . 'public/class-darsna-tutor-reg-public.php')) {
+                    require_once DARSNA_TUTOR_REG_PLUGIN_DIR . 'public/class-darsna-tutor-reg-public.php';
+                    if (class_exists('Darsna_Tutor_Reg_Public')) {
+                        $public_handler = new Darsna_Tutor_Reg_Public(DARSNA_TUTOR_REG_VERSION, 'darsna-tutor-reg'); // Adjust constructor params if needed
+                        $public_handler->process_pending_latepoint_syncs();
+                        darsna_debug_log("darsna_check_pending_syncs: Called process_pending_latepoint_syncs directly.");
+                    } else {
+                        darsna_debug_log("darsna_check_pending_syncs: Darsna_Tutor_Reg_Public class not found after include.");
+                    }
+                } else {
+                     darsna_debug_log("darsna_check_pending_syncs: Darsna_Tutor_Reg_Public class file not found.");
+                }
+            }
+        } else {
+            if (!class_exists('LatePointAgentModel')) {
+                darsna_debug_log("darsna_check_pending_syncs: LatePointAgentModel not available yet.");
+            }
+            if (!class_exists('Darsna_Tutor_Registration')) {
+                 darsna_debug_log("darsna_check_pending_syncs: Darsna_Tutor_Registration class not available yet.");
+            }
+        }
+    }
+}
+// add_action('init', 'darsna_check_pending_syncs', 999); // Run late on init
