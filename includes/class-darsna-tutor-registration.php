@@ -75,16 +75,20 @@ class Darsna_Tutor_Registration {
 
         $this->load_dependencies();
 
-        // Check if LatePoint plugin is active and its classes are loaded
-        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
+        // Instantiate public and admin handlers
+        $plugin_public = new Darsna_Tutor_Reg_Public($this->get_plugin_name(), $this->get_version());
+        $plugin_admin = new Darsna_Tutor_Reg_Admin($this->get_plugin_name(), $this->get_version());
+
+        // Define core and LatePoint integration hooks
+        $this->define_core_plugin_hooks($plugin_public, $plugin_admin); // Always define core hooks
+        $this->define_latepoint_integration_hooks($plugin_public, $plugin_admin); // Always define LatePoint integration hooks to ensure 'latepoint_loaded' listener is active
+
+        // Admin notice if LatePoint is not ready at this point (for informational purposes).
+        // The 'latepoint_loaded' hook is now always active, so syncs will occur when LatePoint loads.
+        if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && !darsna_tutor_reg_is_latepoint_loaded()) {
             add_action('admin_notices', function() {
-                echo '<div class="notice notice-error"><p>Darsna Tutor Reg: LatePoint not fully loaded (checked via darsna_tutor_reg_is_latepoint_loaded). Some functionality may be limited.</p></div>';
+                echo '<div class="notice notice-warning"><p>Darsna Tutor Reg: LatePoint is not yet fully loaded. Tutor synchronization features will activate automatically once LatePoint completes its loading process. If this message persists, please check the LatePoint plugin status and ensure it loads correctly.</p></div>';
             });
-            // Still define basic hooks but skip LatePoint-dependent ones
-            $this->define_basic_hooks();
-        } else {
-            // Define all hooks including LatePoint-dependent ones
-            $this->define_hooks();
         }
     }
 
@@ -118,15 +122,14 @@ class Darsna_Tutor_Registration {
      * @access   private
      */
     /**
-     * Define basic hooks that don't depend on LatePoint plugin.
+     * Define core plugin hooks that are always active.
      *
-     * @since    1.0.1
+     * @since    1.0.2
      * @access   private
+     * @param    Darsna_Tutor_Reg_Public    $plugin_public    Instance of the public-facing class.
+     * @param    Darsna_Tutor_Reg_Admin     $plugin_admin     Instance of the admin-facing class.
      */
-    private function define_basic_hooks() {
-        $plugin_public = new Darsna_Tutor_Reg_Public( $this->get_plugin_name(), $this->get_version() );
-        $plugin_admin = new Darsna_Tutor_Reg_Admin( $this->get_plugin_name(), $this->get_version() );
-
+    private function define_core_plugin_hooks($plugin_public, $plugin_admin) {
         // Check required plugins
         $this->loader->add_action( 'admin_init', $plugin_admin, 'check_required_plugins' );
 
@@ -143,47 +146,33 @@ class Darsna_Tutor_Registration {
         // Menu links
         $this->loader->add_filter( 'wp_nav_menu_items', $plugin_public, 'add_dashboard_logout_menu_links', 99, 2 );
 
-        // Always register form fields regardless of LatePoint status
+        // WooCommerce registration and account fields
         $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_filter( 'woocommerce_registration_errors', $plugin_public, 'validate_tutor_fields', 10, 3 );
         $this->loader->add_action( 'woocommerce_save_account_details_errors', $plugin_public, 'validate_tutor_fields_update', 10, 2 );
         $this->loader->add_action( 'woocommerce_created_customer', $plugin_public, 'save_tutor_profile', 20 );
         $this->loader->add_action( 'woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20 );
+    
+        // Retry hook registration (seems general)
+        $this->loader->add_action('init', $plugin_public, 'register_retry_hook');
     }
 
     /**
-     * Define all hooks including those that depend on LatePoint plugin.
+     * Define hooks specifically for LatePoint integration.
+     * These hooks are always registered to listen for LatePoint events or manage LatePoint-specific data.
      *
-     * @since    1.0.1
+     * @since    1.0.2
      * @access   private
+     * @param    Darsna_Tutor_Reg_Public    $plugin_public    Instance of the public-facing class.
+     * @param    Darsna_Tutor_Reg_Admin     $plugin_admin     Instance of the admin-facing class.
      */
-    private function define_hooks() {
-        $plugin_public = new Darsna_Tutor_Reg_Public($this->get_plugin_name(), $this->get_version());
-        $plugin_admin = new Darsna_Tutor_Reg_Admin( $this->get_plugin_name(), $this->get_version() );
-
-        // First add all basic hooks
-        $this->define_basic_hooks();
-
-        // Then add LatePoint-dependent hooks
+    private function define_latepoint_integration_hooks($plugin_public, $plugin_admin) {
+        // Process pending syncs when LatePoint is fully loaded
         $this->loader->add_action('latepoint_loaded', $plugin_public, 'process_pending_latepoint_syncs', 20);
-        // WooCommerce registration and account fields
-        $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
-        $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
-
-        // Validate fields
-        $this->loader->add_filter( 'woocommerce_registration_errors', $plugin_public, 'validate_tutor_fields', 10, 3 );
-        $this->loader->add_action( 'woocommerce_save_account_details_errors', $plugin_public, 'validate_tutor_fields_update', 10, 2 );
-
-        // Save fields and sync with LatePoint
-        $this->loader->add_action('woocommerce_created_customer', $plugin_public, 'save_tutor_profile', 20);
-        $this->loader->add_action('woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20);
-
-        // User deletion cleanup
+        
+        // User deletion cleanup related to LatePoint agent
         $this->loader->add_action( 'delete_user', $plugin_public, 'remove_agent_on_user_delete', 10, 1 );
-    
-        // Add retry hook registration
-        $this->loader->add_action('init', $plugin_public, 'register_retry_hook');
     }
 
     /**
