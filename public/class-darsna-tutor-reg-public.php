@@ -845,9 +845,9 @@ class Darsna_Tutor_Reg_Public {
      * Check for pending LatePoint synchronizations
      */
     public function process_pending_latepoint_syncs() {
-        // Only run if LatePoint is available now
-        if (!class_exists('LatePointAgentModel')) {
-            darsna_debug_log("process_pending_latepoint_syncs: LatePointAgentModel class not found. Aborting.");
+        // Only run if LatePoint is available now, using the improved check
+        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
+            darsna_debug_log("process_pending_latepoint_syncs: LatePoint is not fully loaded according to darsna_tutor_reg_is_latepoint_loaded(). Aborting retry.");
             return;
         }
     

@@ -58,10 +58,34 @@ require_once DARSNA_TUTOR_REG_PLUGIN_DIR . 'includes/class-darsna-tutor-registra
  * @return   boolean  True if LatePoint is fully loaded, false otherwise.
  */
 function darsna_tutor_reg_is_latepoint_loaded() {
-    if (!did_action('latepoint_init') && !did_action('latepoint_loaded')) {
+    $latepoint_init_done = did_action('latepoint_init');
+    $latepoint_loaded_done = did_action('latepoint_loaded');
+    $agent_model_exists = class_exists('LatePointAgentModel');
+    $service_model_exists = class_exists('LatePointServiceModel'); // Added check for another core LP class
+    $settings_class_exists = class_exists('LatePointSettingsHelper'); // Added check for settings class
+
+    if (!$latepoint_init_done && !$latepoint_loaded_done) {
+        darsna_debug_log('LatePoint check: Neither latepoint_init nor latepoint_loaded action has run.');
         return false;
     }
-    return class_exists('LatePointAgentModel');
+    if (!$agent_model_exists) {
+        darsna_debug_log('LatePoint check: LatePointAgentModel class does not exist.');
+    }
+    if (!$service_model_exists) {
+        darsna_debug_log('LatePoint check: LatePointServiceModel class does not exist.');
+    }
+    if (!$settings_class_exists) {
+        darsna_debug_log('LatePoint check: LatePointSettingsHelper class does not exist.');
+    }
+
+    // Consider LatePoint loaded if its core actions have run and key classes are available
+    $is_loaded = ($latepoint_init_done || $latepoint_loaded_done) && $agent_model_exists && $service_model_exists && $settings_class_exists;
+    if ($is_loaded) {
+        darsna_debug_log('LatePoint check: Considered loaded. latepoint_init: ' . ($latepoint_init_done ? 'yes' : 'no') . ', latepoint_loaded: ' . ($latepoint_loaded_done ? 'yes' : 'no') . ', AgentModel: yes, ServiceModel: yes, SettingsHelper: yes');
+    } else {
+        darsna_debug_log('LatePoint check: Considered NOT loaded. latepoint_init: ' . ($latepoint_init_done ? 'yes' : 'no') . ', latepoint_loaded: ' . ($latepoint_loaded_done ? 'yes' : 'no') . ', AgentModel: ' . ($agent_model_exists ? 'yes' : 'no') . ', ServiceModel: ' . ($service_model_exists ? 'yes' : 'no') . ', SettingsHelper: ' . ($settings_class_exists ? 'yes' : 'no'));
+    }
+    return $is_loaded;
 }
 
 /**
