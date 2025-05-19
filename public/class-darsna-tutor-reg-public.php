@@ -303,6 +303,7 @@ class Darsna_Tutor_Reg_Public {
     public function validate_tutor_fields($errors, $username, $email) {
         if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
             $errors->add( 'nonce_error', __( 'Security check failed. Please refresh and try again.', 'darsna-tutor-reg' ) );
+            darsna_debug_log("validate_tutor_fields: Nonce verification failed. Username: " . esc_html($username) . ", Email: " . esc_html($email) . ". POST darsna_tutor_nonce set: " . (isset($_POST['darsna_tutor_nonce']) ? 'yes' : 'no'));
             return $errors;
         }
 
@@ -312,16 +313,16 @@ class Darsna_Tutor_Reg_Public {
 
         // Add debug before full_name check
         if (!isset($_POST['full_name'])) {
-            darsna_debug_log("full_name is not set in _POST");
+            darsna_debug_log("validate_tutor_fields: full_name is not set in _POST for username: " . esc_html($username));
         } else {
-            darsna_debug_log("full_name before check: " . gettype($_POST['full_name']) . " - " . (is_null($_POST['full_name']) ? "NULL" : $_POST['full_name']));
+            darsna_debug_log("validate_tutor_fields: full_name before check for username " . esc_html($username) . ": " . gettype($_POST['full_name']) . " - " . (is_null($_POST['full_name']) ? "NULL" : esc_html($_POST['full_name'])));
         }
 
         // Add debug before account_type sanitization
         if (isset($_POST['account_type'])) {
-            darsna_debug_log("account_type before sanitize: " . gettype($_POST['account_type']) . " - " . (is_null($_POST['account_type']) ? "NULL" : $_POST['account_type']));
+            darsna_debug_log("validate_tutor_fields: account_type before sanitize for username " . esc_html($username) . ": " . gettype($_POST['account_type']) . " - " . (is_null($_POST['account_type']) ? "NULL" : esc_html($_POST['account_type'])));
         } else {
-            darsna_debug_log("account_type is not set in _POST");
+            darsna_debug_log("validate_tutor_fields: account_type is not set in _POST for username: " . esc_html($username));
         }
         $account_type = isset($_POST['account_type']) ? sanitize_text_field(wp_unslash($_POST['account_type'])) : '';
         if ( ! in_array( $account_type, array( 'student', 'latepoint_agent' ), true ) ) {
@@ -357,6 +358,7 @@ class Darsna_Tutor_Reg_Public {
         // We need to ensure the nonce check is appropriate for this context as well.
         if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
              $errors->add( 'nonce_error_update', __( 'Security check failed on update. Please refresh and try again.', 'darsna-tutor-reg' ) );
+             darsna_debug_log("validate_tutor_fields_update: Nonce verification failed for user_id: " . ($user ? $user->ID : 'UNKNOWN') . ". POST darsna_tutor_nonce set: " . (isset($_POST['darsna_tutor_nonce']) ? 'yes' : 'no'));
              return; // Return early if nonce fails
         }
 
