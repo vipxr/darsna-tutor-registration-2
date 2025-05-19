@@ -431,6 +431,9 @@ class Darsna_Tutor_Reg_Public {
             update_user_meta( $user_id, 'urgent_help', ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) ? 'yes' : 'no' );
             update_user_meta( $user_id, 'urgent_hourly_rate', ( isset( $_POST['urgent_hourly_rate'] ) ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0 );
 
+            // Always attempt synchronization
+            $this->sync_latepoint_data($user_id);
+            
             // Only sync with LatePoint if it's properly loaded
             if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
                 $this->sync_latepoint_data( $user_id );
@@ -461,24 +464,28 @@ class Darsna_Tutor_Reg_Public {
      * @param int $user_id WordPress User ID.
      */
     private function sync_latepoint_data($user_id) {
-        // Check if LatePoint is available at the moment we need it
         if (!class_exists('LatePointAgentModel')) {
-            // Store the user ID for later synchronization
-            update_user_meta($user_id, '_darsna_pending_latepoint_sync', 'yes');
+            error_log('Darsna Debug: LatePointAgentModel class not available - cannot create agent for user ' . $user_id);
             return;
         }
+
         global $wpdb;
         $latepoint_db_prefix = $wpdb->prefix;
 
-        $wp_user = get_userdata( $user_id );
-        if ( ! $wp_user ) {
-            error_log('Darsna Tutor Reg: WP User not found for ID ' . $user_id . ' during LatePoint sync.');
+        $wp_user = get_userdata($user_id);
+        if (!$wp_user) {
+            error_log('Darsna Debug: WP User not found for ID ' . $user_id);
             return;
         }
 
-        $agent_model = new LatePointAgentModel();
-        $agent = $agent_model->where( array( 'wp_user_id' => $user_id ) )->get_results();
-        
+        try {
+            $agent_model = new LatePointAgentModel();
+            $agent = $agent_model->where( array( 'wp_user_id' => $user_id ) )->get_results();
+        } catch (Exception $e) {
+            error_log("Darsna Tutor Reg: Failed to create or find LatePoint agent for WP User ID " . $user_id . " - " . $e->getMessage());
+            return;
+        }
+
         $agent_data = array(
             'first_name'   => $wp_user->first_name,
             'last_name'    => $wp_user->last_name,

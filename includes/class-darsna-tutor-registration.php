@@ -176,8 +176,8 @@ class Darsna_Tutor_Registration {
         $this->loader->add_action( 'woocommerce_save_account_details_errors', $plugin_public, 'validate_tutor_fields_update', 10, 2 );
 
         // Save fields and sync with LatePoint
-        $this->loader->add_action( 'woocommerce_created_customer', $plugin_public, 'save_tutor_profile', 20 );
-        $this->loader->add_action( 'woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20 );
+        $this->loader->add_action('woocommerce_created_customer', $plugin_public, 'save_tutor_profile', 20);
+        $this->loader->add_action('woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20);
 
         // User deletion cleanup
         $this->loader->add_action( 'delete_user', $plugin_public, 'remove_agent_on_user_delete', 10, 1 );
