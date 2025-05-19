@@ -132,12 +132,7 @@ if (!function_exists('darsna_check_pending_syncs')) {
             if (!empty($pending_syncs)) {
                 darsna_debug_log("darsna_check_pending_syncs: Found " . count($pending_syncs) . " pending LatePoint syncs on init.");
                 
-                // Get an instance of the public class to call process_pending_latepoint_syncs
-                // This assumes Darsna_Tutor_Registration has a way to get an instance of Darsna_Tutor_Reg_Public
-                // or that process_pending_latepoint_syncs can be called statically or via a global instance.
-                // For simplicity, if Darsna_Tutor_Registration instantiates Darsna_Tutor_Reg_Public and stores it,
-                // we might need a more robust way to access it here.
-                // A common pattern is to have a static getter or a global instance.
+                
 
                 // Simpler approach: Directly instantiate Darsna_Tutor_Reg_Public if its constructor is light
                 // and it doesn't rely on the main plugin class's full initialization for this specific task.
@@ -146,8 +141,7 @@ if (!function_exists('darsna_check_pending_syncs')) {
                     require_once DARSNA_TUTOR_REG_PLUGIN_DIR . 'public/class-darsna-tutor-reg-public.php';
                     if (class_exists('Darsna_Tutor_Reg_Public')) {
                         $public_handler = new Darsna_Tutor_Reg_Public(DARSNA_TUTOR_REG_VERSION, 'darsna-tutor-reg'); // Adjust constructor params if needed
-                        $public_handler->process_pending_latepoint_syncs();
-                        darsna_debug_log("darsna_check_pending_syncs: Called process_pending_latepoint_syncs directly.");
+                        
                     } else {
                         darsna_debug_log("darsna_check_pending_syncs: Darsna_Tutor_Reg_Public class not found after include.");
                     }

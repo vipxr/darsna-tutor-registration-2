@@ -155,7 +155,7 @@ class Darsna_Tutor_Registration {
         $this->loader->add_action( 'woocommerce_save_account_details', $plugin_public, 'save_tutor_profile', 20 );
     
         // Retry hook registration (seems general)
-        $this->loader->add_action('init', $plugin_public, 'register_retry_hook');
+
     }
 
     /**
@@ -169,7 +169,7 @@ class Darsna_Tutor_Registration {
      */
     private function define_latepoint_integration_hooks($plugin_public, $plugin_admin) {
         // Process pending syncs when LatePoint is fully loaded
-        $this->loader->add_action('latepoint_loaded', $plugin_public, 'process_pending_latepoint_syncs', 20);
+
         
         // User deletion cleanup related to LatePoint agent
         $this->loader->add_action( 'delete_user', $plugin_public, 'remove_agent_on_user_delete', 10, 1 );

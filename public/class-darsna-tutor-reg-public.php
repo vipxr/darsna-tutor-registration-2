@@ -480,8 +480,8 @@ class Darsna_Tutor_Reg_Public {
 
             // Only sync with LatePoint if it's properly loaded
             if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
-                darsna_debug_log("LatePoint is loaded. Calling sync_latepoint_data for user_id: " . $user_id);
-                $this->sync_latepoint_data( $user_id );
+                darsna_debug_log("LatePoint loaded - executing direct sync for user_id: " . $user_id);
+                darsna_sync_user_with_latepoint($user_id);
             } else {
                 darsna_debug_log('Darsna Tutor Reg: LatePoint not loaded. Cannot sync user ' . $user_id . ' with LatePoint. Scheduling for retry.');
                 // Schedule for retry if LatePoint is not available
@@ -813,55 +813,12 @@ class Darsna_Tutor_Reg_Public {
         return $items . $new_items;
     }
 
-    /**
-     * Register retry hook for LatePoint sync
-     */
-    public function register_retry_hook() {
-        add_action('darsna_retry_latepoint_sync', array($this, 'retry_sync_latepoint_data'), 10, 1);
-    }
 
-    /**
-     * Retry syncing data with LatePoint
-     */
-    public function retry_sync_latepoint_data($user_id) {
-        if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
-            $this->sync_latepoint_data($user_id);
-        } else {
-            $retry_count = get_user_meta($user_id, '_darsna_latepoint_sync_retries', true);
-            $retry_count = !empty($retry_count) ? intval($retry_count) + 1 : 1;
-            
-            if ($retry_count < 5) {
-                update_user_meta($user_id, '_darsna_latepoint_sync_retries', $retry_count);
-                wp_schedule_single_event(time() + 60, 'darsna_retry_latepoint_sync', array($user_id));
-                error_log("Darsna Tutor Reg: Retry {$retry_count} for user {$user_id}");
-            } else {
-                error_log("Darsna Tutor Reg: Sync failed after {$retry_count} retries");
-                delete_user_meta($user_id, '_darsna_latepoint_sync_retries');
-            }
-        }
-    }
 
     /**
      * Check for pending LatePoint synchronizations
      */
-    public function process_pending_latepoint_syncs() {
-        // Only run if LatePoint is available now, using the improved check
-        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
-            darsna_debug_log("process_pending_latepoint_syncs: LatePoint is not fully loaded according to darsna_tutor_reg_is_latepoint_loaded(). Aborting retry.");
-            return;
-        }
-    
-        // Get the pending syncs from options (not user meta)
-        $pending_syncs = get_option('darsna_pending_latepoint_syncs', array());
-    
-        if (empty($pending_syncs)) {
-            darsna_debug_log("process_pending_latepoint_syncs: No pending syncs found.");
-            return;
-        }
-        
-        darsna_debug_log("process_pending_latepoint_syncs: Processing " . count($pending_syncs) . " pending LatePoint syncs");
-    
-        $still_pending = $pending_syncs; // Work with a copy
+
 
         foreach ($pending_syncs as $key => $user_id) {
             // Ensure user_id is an integer
