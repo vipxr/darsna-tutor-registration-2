@@ -461,18 +461,10 @@ class Darsna_Tutor_Reg_Public {
      * @param int $user_id WordPress User ID.
      */
     private function sync_latepoint_data($user_id) {
-        // Double-check LatePoint availability
-        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
-            error_log('Darsna Tutor Reg: Delaying LatePoint sync for user ' . $user_id);
-            if (!wp_next_scheduled('darsna_retry_latepoint_sync', array($user_id))) {
-                wp_schedule_single_event(time() + 60, 'darsna_retry_latepoint_sync', array($user_id));
-            }
-            return;
-        }
-
-        // Check if LatePoint is properly loaded
-        if ( ! function_exists('darsna_tutor_reg_is_latepoint_loaded') || ! darsna_tutor_reg_is_latepoint_loaded() ) {
-            error_log('Darsna Tutor Reg: LatePointAgentModel class not found. Cannot sync user ' . $user_id);
+        // Check if LatePoint is available at the moment we need it
+        if (!class_exists('LatePointAgentModel')) {
+            // Store the user ID for later synchronization
+            update_user_meta($user_id, '_darsna_pending_latepoint_sync', 'yes');
             return;
         }
         global $wpdb;
@@ -734,6 +726,32 @@ class Darsna_Tutor_Reg_Public {
                 error_log("Darsna Tutor Reg: Sync failed after {$retry_count} retries");
                 delete_user_meta($user_id, '_darsna_latepoint_sync_retries');
             }
+        }
+    }
+
+    /**
+     * Check for pending LatePoint synchronizations
+     */
+    public function process_pending_latepoint_syncs() {
+        // Only run if LatePoint is available now
+        if (!class_exists('LatePointAgentModel')) {
+            return;
+        }
+        
+        // Query users with pending sync flag
+        $args = array(
+            'meta_key' => '_darsna_pending_latepoint_sync',
+            'meta_value' => 'yes',
+            'fields' => 'ID',
+        );
+        
+        $users = get_users($args);
+        
+        foreach ($users as $user_id) {
+            // Process the sync
+            $this->sync_latepoint_data($user_id);
+            // Remove the pending flag
+            delete_user_meta($user_id, '_darsna_pending_latepoint_sync');
         }
     }
 }

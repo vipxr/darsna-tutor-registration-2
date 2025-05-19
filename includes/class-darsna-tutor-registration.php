@@ -166,6 +166,7 @@ class Darsna_Tutor_Registration {
         $this->define_basic_hooks();
 
         // Then add LatePoint-dependent hooks
+        $this->loader->add_action('wp_loaded', $plugin_public, 'process_pending_latepoint_syncs');
         // WooCommerce registration and account fields
         $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
