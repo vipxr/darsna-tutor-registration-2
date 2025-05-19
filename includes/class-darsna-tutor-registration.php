@@ -76,9 +76,9 @@ class Darsna_Tutor_Registration {
         $this->load_dependencies();
 
         // Check if LatePoint plugin is active and its classes are loaded
-        if (!class_exists('\LatePoint\Loader')) {
+        if (!function_exists('darsna_tutor_reg_is_latepoint_loaded') || !darsna_tutor_reg_is_latepoint_loaded()) {
             add_action('admin_notices', function() {
-                echo '<div class="notice notice-error"><p>Darsna Tutor Reg: LatePoint plugin classes not fully loaded yet. Some functionality may be limited.</p></div>';
+                echo '<div class="notice notice-error"><p>Darsna Tutor Reg: LatePoint not fully loaded (checked via darsna_tutor_reg_is_latepoint_loaded). Some functionality may be limited.</p></div>';
             });
             // Still define basic hooks but skip LatePoint-dependent ones
             $this->define_basic_hooks();
@@ -166,7 +166,7 @@ class Darsna_Tutor_Registration {
         $this->define_basic_hooks();
 
         // Then add LatePoint-dependent hooks
-        $this->loader->add_action('wp_loaded', $plugin_public, 'process_pending_latepoint_syncs', 20);
+        $this->loader->add_action('latepoint_loaded', $plugin_public, 'process_pending_latepoint_syncs', 20);
         // WooCommerce registration and account fields
         $this->loader->add_action( 'woocommerce_register_form_start', $plugin_public, 'render_tutor_fields', 20 );
         $this->loader->add_action( 'woocommerce_edit_account_form', $plugin_public, 'render_tutor_fields', 20 );
