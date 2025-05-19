@@ -394,84 +394,106 @@ class Darsna_Tutor_Reg_Public {
      * @param int $user_id User ID.
      */
     public function save_tutor_profile( $user_id ) {
-        // Nonce verification
-        if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['darsna_tutor_nonce'] ) ), 'darsna_tutor_fields_action' ) ) {
-            // For registration, errors are handled by 'validate_tutor_fields'
-            // For account update, we might want to add an error if nonce fails, though WC handles some of this.
-            // For now, let's assume validation hooks catch issues. If not, an error could be added here for updates.
-            // Example: wc_add_notice( __( 'Security check failed. Please try again.', 'darsna-tutor-reg' ), 'error' );
-            // return; // Or handle error appropriately
+        darsna_debug_log("save_tutor_profile triggered for user_id: " . $user_id);
+
+        if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
+            darsna_debug_log("Nonce verification failed in save_tutor_profile for user_id: " . $user_id);
+            // Optionally, you might want to return or add an error here if nonce is critical for this step
+            // For now, just logging, as validation hooks might handle user-facing errors.
+        } else {
+            darsna_debug_log("Nonce verification successful in save_tutor_profile for user_id: " . $user_id);
         }
 
-        $user = new WP_User( $user_id );
-        $account_type = isset( $_POST['account_type'] ) ? sanitize_text_field( wp_unslash( $_POST['account_type'] ) ) : null;
-
-        // If account_type is not submitted (e.g. admin editing user, or other forms), try to get current role
-        if ( empty($account_type) && is_user_logged_in() && $user_id === get_current_user_id() ) {
-             $current_user_roles = $user->roles;
-             if (in_array('tutor', $current_user_roles, true) || in_array('latepoint_agent', $current_user_roles, true)) {
-                 $account_type = 'latepoint_agent';
-             } else {
-                 $account_type = 'student'; // Default or based on other roles
-             }
-        } elseif (empty($account_type)) {
-            // Fallback if not set and not current user edit, could default to student or do nothing
-            // This scenario needs careful consideration based on where save_tutor_profile is called from
-            // For 'woocommerce_created_customer', $_POST['account_type'] should be set from the form.
-        }
-
-
-        // Update basic user info (first name, last name from full_name)
+        // Save Full Name as first_name and last_name
         if ( isset( $_POST['full_name'] ) ) {
             $full_name = sanitize_text_field( wp_unslash( $_POST['full_name'] ) );
+            darsna_debug_log("Processing full_name: '" . $full_name . "' for user_id: " . $user_id);
             $name_parts = explode( ' ', $full_name, 2 );
             $first_name = $name_parts[0];
             $last_name  = isset( $name_parts[1] ) ? $name_parts[1] : '';
-
             wp_update_user( array(
                 'ID'         => $user_id,
                 'first_name' => $first_name,
                 'last_name'  => $last_name,
                 'display_name' => $full_name // Also update display name
             ) );
-            update_user_meta($user_id, 'nickname', $full_name);
+            update_user_meta( $user_id, 'full_name', $full_name ); // Save the full name as meta too, if needed
+            darsna_debug_log("Updated WordPress user with first_name: '" . $first_name . "', last_name: '" . $last_name . "' for user_id: " . $user_id);
+        } else {
+            darsna_debug_log("full_name not set in _POST for user_id: " . $user_id);
         }
 
+        $account_type = isset( $_POST['account_type'] ) ? sanitize_text_field( wp_unslash( $_POST['account_type'] ) ) : '';
+        darsna_debug_log("Account type from _POST: '" . $account_type . "' for user_id: " . $user_id);
+        update_user_meta( $user_id, 'account_type', $account_type );
 
-        if ( $account_type === 'latepoint_agent' ) {
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            darsna_debug_log("Failed to get userdata for user_id: " . $user_id . " in save_tutor_profile. Aborting.");
+            return;
+        }
+
+        // Remove all roles first to handle role changes (e.g., student to tutor)
+        // $user->set_role(''); // Clear existing roles - Be cautious with this, ensure it's desired behavior.
+                                // It might be better to explicitly remove 'student' if 'tutor' is chosen, and vice-versa.
+                                // For now, let's assume set_role handles replacement correctly.
+
+        if ( $account_type === 'student' ) {
+            if ( ! get_role( 'student' ) ) {
+                add_role( 'student', 'Student', array( 'read' => true ) ); // Ensure 'student' role exists
+                darsna_debug_log("Created 'student' role.");
+            }
+            $user->set_role( 'student' );
+            darsna_debug_log("Set role to 'student' for user_id: " . $user_id);
+            // If they were a tutor, remove LatePoint agent data
+            if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
+                darsna_debug_log("User " . $user_id . " is a student. Attempting to remove any existing LatePoint agent data.");
+                $this->remove_latepoint_agent_by_wp_user_id( $user_id );
+            } else {
+                 darsna_debug_log("LatePoint not loaded. Cannot remove agent data for student user_id: " . $user_id);
+            }
+        } elseif ( $account_type === 'latepoint_agent' ) {
             if ( ! get_role( 'tutor' ) ) {
                 add_role( 'tutor', 'Tutor', array( 'read' => true ) ); // Ensure 'tutor' role exists
+                darsna_debug_log("Created 'tutor' role.");
             }
             $user->set_role( 'tutor' ); // Set WordPress role to 'tutor'
+            darsna_debug_log("Set role to 'tutor' for user_id: " . $user_id);
 
-            update_user_meta( $user_id, 'hourly_rate', isset( $_POST['hourly_rate'] ) ? floatval( $_POST['hourly_rate'] ) : 0 );
-            $subject = ( ! empty( $_POST['subject'] ) && isset($_POST['subject']) && ctype_digit( (string)($_POST['subject']) ) ) ? intval( $_POST['subject'] ) : ''; // Changed from 'subjects' to 'subject'
-            update_user_meta( $user_id, 'darsna_subject', $subject ); // Changed meta key to 'darsna_subject'
-            update_user_meta( $user_id, 'urgent_help', ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) ? 'yes' : 'no' );
-            update_user_meta( $user_id, 'urgent_hourly_rate', ( isset( $_POST['urgent_hourly_rate'] ) ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0 );
+            $hourly_rate = isset( $_POST['hourly_rate'] ) ? floatval( $_POST['hourly_rate'] ) : 0;
+            update_user_meta( $user_id, 'hourly_rate', $hourly_rate );
+            darsna_debug_log("Updated hourly_rate: " . $hourly_rate . " for user_id: " . $user_id);
 
-            // Always attempt synchronization // This line and the next are the change
-            // $this->sync_latepoint_data($user_id); // REMOVED this line
+            $subject = ( ! empty( $_POST['subject'] ) && isset($_POST['subject']) && ctype_digit( (string)($_POST['subject']) ) ) ? intval( $_POST['subject'] ) : '';
+            update_user_meta( $user_id, 'darsna_subject', $subject );
+            darsna_debug_log("Updated darsna_subject: " . $subject . " for user_id: " . $user_id);
+
+            $urgent_help = ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) ? 'yes' : 'no';
+            update_user_meta( $user_id, 'urgent_help', $urgent_help );
+            darsna_debug_log("Updated urgent_help: " . $urgent_help . " for user_id: " . $user_id);
+
+            $urgent_hourly_rate = ( isset( $_POST['urgent_hourly_rate'] ) ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0;
+            update_user_meta( $user_id, 'urgent_hourly_rate', $urgent_hourly_rate );
+            darsna_debug_log("Updated urgent_hourly_rate: " . $urgent_hourly_rate . " for user_id: " . $user_id);
 
             // Only sync with LatePoint if it's properly loaded
             if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
+                darsna_debug_log("LatePoint is loaded. Calling sync_latepoint_data for user_id: " . $user_id);
                 $this->sync_latepoint_data( $user_id );
             } else {
-                error_log('Darsna Tutor Reg: Cannot sync user ' . $user_id . ' with LatePoint because LatePointAgentModel class is not available.');
+                darsna_debug_log('Darsna Tutor Reg: LatePoint not loaded. Cannot sync user ' . $user_id . ' with LatePoint. Scheduling for retry.');
+                // Schedule for retry if LatePoint is not available
+                $pending_syncs = get_option('darsna_pending_latepoint_syncs', array());
+                if (!in_array($user_id, $pending_syncs)) {
+                    $pending_syncs[] = $user_id;
+                    update_option('darsna_pending_latepoint_syncs', $pending_syncs);
+                    darsna_debug_log("User ID " . $user_id . " added to pending syncs list.");
+                }
             }
-
-        } else if ( $account_type === 'student' ) {
-            // If user switches from Tutor to Student, or registers as Student
-            $user->set_role( 'customer' ); // Or your default student role
-            // Optionally, remove tutor-specific meta and LatePoint agent data
-            delete_user_meta( $user_id, 'hourly_rate' );
-            delete_user_meta( $user_id, 'darsna_subject' );
-            delete_user_meta( $user_id, 'urgent_help' );
-            delete_user_meta( $user_id, 'urgent_hourly_rate' );
-            // Remove from LatePoint if they were an agent
-            if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
-                $this->remove_latepoint_agent_data( $user_id );
-            }
+        } else {
+            darsna_debug_log("Account type is neither 'student' nor 'latepoint_agent': '" . $account_type . "' for user_id: " . $user_id . ". No role set, no LatePoint sync.");
+            // If account type is empty or invalid, perhaps default to 'student' or log an error.
+            // For now, it does nothing specific for WP role or LatePoint sync.
         }
     }
 
@@ -483,102 +505,162 @@ class Darsna_Tutor_Reg_Public {
      * @param int $user_id WordPress User ID.
      */
     private function sync_latepoint_data($user_id) {
+        darsna_debug_log("sync_latepoint_data called for user_id: " . $user_id);
+
         if (!class_exists('LatePointAgentModel')) {
-            error_log('Darsna Debug: LatePointAgentModel class not available - cannot create agent for user ' . $user_id);
+            error_log('Darsna Debug: LatePointAgentModel class not available in sync_latepoint_data - cannot create/update agent for user ' . $user_id);
+            darsna_debug_log('LatePointAgentModel class not available in sync_latepoint_data for user_id: ' . $user_id);
             return;
         }
 
         global $wpdb;
-        $latepoint_db_prefix = $wpdb->prefix;
+        // $latepoint_db_prefix = $wpdb->prefix; // Not directly used here, but good to have if direct DB queries were needed
 
         $wp_user = get_userdata($user_id);
         if (!$wp_user) {
-            error_log('Darsna Debug: WP User not found for ID ' . $user_id);
+            error_log('Darsna Debug: WP User not found for ID ' . $user_id . ' in sync_latepoint_data');
+            darsna_debug_log('WP User not found for ID ' . $user_id . ' in sync_latepoint_data');
             return;
         }
+        darsna_debug_log("WP User data retrieved for sync: Email - " . $wp_user->user_email . ", Display Name - " . $wp_user->display_name);
+
+        $agent_model = new LatePointAgentModel();
+        $agent = false; // Initialize agent variable
 
         try {
-            $agent_model = new LatePointAgentModel();
-            $agent = $agent_model->where( array( 'wp_user_id' => $user_id ) )->get_results();
+            // Check if agent exists by wp_user_id
+            $existing_agents = $agent_model->where(array('wp_user_id' => $user_id))->get_results();
+            if ($existing_agents && !empty($existing_agents)) {
+                $agent = $existing_agents[0]; // Use the first found agent
+                darsna_debug_log("Existing LatePoint agent found for wp_user_id " . $user_id . ". Agent ID: " . $agent->id);
+            } else {
+                darsna_debug_log("No existing LatePoint agent found for wp_user_id " . $user_id . ". Will attempt to create a new one.");
+            }
         } catch (Exception $e) {
-            error_log("Darsna Tutor Reg: Failed to create or find LatePoint agent for WP User ID " . $user_id . " - " . $e->getMessage());
-            return;
+            error_log("Darsna Tutor Reg: Error when trying to find LatePoint agent for WP User ID " . $user_id . " - " . $e->getMessage());
+            darsna_debug_log("Exception while finding agent for user_id " . $user_id . ": " . $e->getMessage());
+            return; // Stop if we can't even query
         }
 
+        // Prepare agent data from WP user details
+        // Ensure first_name and last_name are populated from WP user profile
+        // If full_name was saved, it should have populated first_name and last_name via wp_update_user
+        $first_name = $wp_user->first_name ?: $wp_user->display_name; // Fallback for first name
+        $last_name = $wp_user->last_name ?: ''; // Fallback for last name
+
+        // If first_name is still the display name and contains a space, try to split it
+        if ($first_name === $wp_user->display_name && strpos($first_name, ' ') !== false && empty($last_name)) {
+            list($first_name_split, $last_name_split) = array_pad(explode(' ', $first_name, 2), 2, null);
+            $first_name = $first_name_split;
+            $last_name = $last_name_split ?: '';
+        }
+        
+        darsna_debug_log("Using First Name: '" . $first_name . "', Last Name: '" . $last_name . "' for LatePoint agent sync (user_id: " . $user_id . ")");
+
         $agent_data = array(
-            'first_name'   => $wp_user->first_name,
-            'last_name'    => $wp_user->last_name,
-            'display_name' => $wp_user->display_name,
+            'first_name'   => $first_name,
+            'last_name'    => $last_name,
+            'display_name' => $wp_user->display_name, // LatePoint uses this
             'email'        => $wp_user->user_email,
             'wp_user_id'   => $user_id,
-            'status'       => 'approved', // Or manage status as needed
+            'status'       => LATEPOINT_AGENT_STATUS_APPROVED, // Use LatePoint constant
         );
+        darsna_debug_log("Agent data prepared for user_id " . $user_id . ": " . print_r($agent_data, true));
 
-        if ( $agent ) {
-            $agent_id = $agent[0]->id;
-            $agent_model->update_where( array('id' => $agent_id), $agent_data );
-        } else {
-            $agent_model->create( $agent_data );
-            $agent_id = $agent_model->get_id();
+        $agent_id = null;
+
+        try {
+            if ( $agent && isset($agent->id) ) { // If agent exists, update it
+                darsna_debug_log("Attempting to update existing LatePoint agent ID: " . $agent->id . " for wp_user_id " . $user_id);
+                if ($agent_model->update_where( array('id' => $agent->id), $agent_data )) {
+                    $agent_id = $agent->id;
+                    darsna_debug_log("Successfully updated LatePoint agent ID: " . $agent_id);
+                } else {
+                    darsna_debug_log("Failed to update LatePoint agent ID: " . $agent->id . ". DB error: " . $wpdb->last_error);
+                    // Check if the data was actually different, sometimes update_where returns 0 if no rows changed.
+                    // We can re-fetch to confirm or assume it's okay if no error.
+                }
+            } else { // Agent does not exist, create new
+                darsna_debug_log("Attempting to create new LatePoint agent for wp_user_id " . $user_id);
+                if ($agent_model->create( $agent_data )) {
+                    $agent_id = $agent_model->get_id();
+                    darsna_debug_log("Successfully created new LatePoint agent. New Agent ID: " . $agent_id);
+                } else {
+                    darsna_debug_log("Failed to create new LatePoint agent for wp_user_id " . $user_id . ". DB error: " . $wpdb->last_error . ". Agent Model Errors: " . print_r($agent_model->get_errors(), true));
+                    return; // Stop if creation failed
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Darsna Tutor Reg: Exception during LatePoint agent create/update for WP User ID " . $user_id . " - " . $e->getMessage());
+            darsna_debug_log("Exception during agent create/update for user_id " . $user_id . ": " . $e->getMessage());
+            return; // Stop on exception
         }
 
         if ( ! $agent_id ) {
-            error_log('Darsna Tutor Reg: Failed to create or find LatePoint agent for WP User ID ' . $user_id);
+            darsna_debug_log("Agent ID not set after create/update attempt for user_id: " . $user_id . ". Aborting further sync.");
             return;
         }
 
-        // Sync service (subject)
-        $wpdb->delete( $latepoint_db_prefix . 'latepoint_agents_services', array( 'agent_id' => $agent_id ) );
-        $subject_id = get_user_meta( $user_id, 'darsna_subject', true ); // Changed to 'darsna_subject'
-        if ( ! empty( $subject_id ) && ctype_digit( strval( $subject_id ) ) ) {
-            $service_id = intval( $subject_id );
-            if ( $service_id > 0 ) {
-                $wpdb->insert( $latepoint_db_prefix . 'latepoint_agents_services', array(
+        darsna_debug_log("Proceeding with sync for Agent ID: " . $agent_id . " (WP User ID: " . $user_id . ")");
+
+        // Sync selected subject (service)
+        $selected_subject_id = get_user_meta( $user_id, 'darsna_subject', true );
+        darsna_debug_log("User meta darsna_subject for user_id " . $user_id . ": " . $selected_subject_id);
+
+        // Clear existing services for this agent first to handle changes
+        $agent_service_model = new LatePointAgentServiceModel();
+        $deleted_rows = $agent_service_model->delete_where(array('agent_id' => $agent_id));
+        darsna_debug_log("Cleared " . (is_numeric($deleted_rows) ? $deleted_rows : 'unknown') . " existing services for agent_id: " . $agent_id);
+
+
+        if ( ! empty( $selected_subject_id ) && is_numeric( $selected_subject_id ) ) {
+            $service_model = new LatePointServiceModel();
+            $service = $service_model->load_by_id($selected_subject_id);
+
+            if ($service) {
+                darsna_debug_log("Service ID " . $selected_subject_id . " (" . $service->name . ") is valid. Attempting to link to agent_id: " . $agent_id);
+                $agent_service_data = array(
                     'agent_id'   => $agent_id,
-                    'service_id' => $service_id,
-                ) );
+                    'service_id' => $selected_subject_id,
+                    // Add other fields like 'capacity_min', 'capacity_max', 'charge_amount' if needed,
+                    // or let LatePoint use defaults from the service itself.
+                );
+                if ($agent_service_model->create($agent_service_data)) {
+                    darsna_debug_log("Successfully linked service ID " . $selected_subject_id . " to agent ID " . $agent_id);
+                } else {
+                    darsna_debug_log("Failed to link service ID " . $selected_subject_id . " to agent ID " . $agent_id . ". DB error: " . $wpdb->last_error . ". Model errors: " . print_r($agent_service_model->get_errors(), true));
+                }
+            } else {
+                darsna_debug_log("Selected subject ID " . $selected_subject_id . " is not a valid LatePoint Service ID for agent_id: " . $agent_id);
             }
+        } else {
+            darsna_debug_log("No valid subject selected or subject ID is not numeric for agent_id: " . $agent_id . ". Value: '" . $selected_subject_id . "'");
         }
 
-        // Sync urgent help service if URGENT_HELP_SERVICE_ID is defined and user opted in
-        if ( defined('DARSNA_URGENT_HELP_SERVICE_ID') && get_user_meta( $user_id, 'urgent_help', true ) === 'yes' ) {
-            // Check if this specific connection already exists to prevent duplicates if run multiple times
-            $exists = $wpdb->get_var( $wpdb->prepare(
-                "SELECT id FROM {$latepoint_db_prefix}latepoint_agents_services WHERE agent_id = %d AND service_id = %d",
-                $agent_id, DARSNA_URGENT_HELP_SERVICE_ID
-            ) );
-            if ( ! $exists ) {
-                 $wpdb->insert( $latepoint_db_prefix . 'latepoint_agents_services', array(
-                    'agent_id'   => $agent_id,
-                    'service_id' => DARSNA_URGENT_HELP_SERVICE_ID,
-                ) );
-            }
-        }
-
-        // Sync meta (hourly rate, urgent rate)
-        // LatePoint stores these in latepoint_agent_meta
+        // Sync hourly rate
         $hourly_rate = get_user_meta( $user_id, 'hourly_rate', true );
-        $urgent_rate = get_user_meta( $user_id, 'urgent_hourly_rate', true );
-        $urgent_help_enabled = get_user_meta( $user_id, 'urgent_help', true ) === 'yes';
-
-        // Remove old meta first to avoid duplicates if keys change or values are removed
-        $wpdb->delete( $latepoint_db_prefix . 'latepoint_agent_meta', array( 'object_id' => $agent_id, 'meta_key' => 'cost_per_appointment' ) );
-        $wpdb->delete( $latepoint_db_prefix . 'latepoint_agent_meta', array( 'object_id' => $agent_id, 'meta_key' => 'urgent_cost_per_appointment' ) );
-
-        if ( $hourly_rate > 0 ) {
-            $wpdb->insert( $latepoint_db_prefix . 'latepoint_agent_meta', array(
-                'object_id'  => $agent_id,
-                'meta_key'   => 'cost_per_appointment',
-                'meta_value' => $hourly_rate,
-            ) );
+        if ( $hourly_rate ) {
+            OsAgentMeta::save_agent_meta_by_key($agent_id, 'hourly_rate', floatval($hourly_rate));
+            darsna_debug_log("Synced hourly_rate: " . $hourly_rate . " for agent_id: " . $agent_id);
+        } else {
+            darsna_debug_log("No hourly_rate found in user meta for agent_id: " . $agent_id);
         }
-        if ( $urgent_help_enabled && $urgent_rate > 0 ) {
-            $wpdb->insert( $latepoint_db_prefix . 'latepoint_agent_meta', array(
-                'object_id'  => $agent_id,
-                'meta_key'   => 'urgent_cost_per_appointment', // Ensure this meta_key is what LatePoint uses
-                'meta_value' => $urgent_rate,
-            ) );
+
+        // Sync urgent help status and rate
+        $urgent_help = get_user_meta( $user_id, 'urgent_help', true );
+        OsAgentMeta::save_agent_meta_by_key($agent_id, 'offers_urgent_help', $urgent_help); // 'yes' or 'no'
+        darsna_debug_log("Synced offers_urgent_help: " . $urgent_help . " for agent_id: " . $agent_id);
+
+        if ( $urgent_help === 'yes' ) {
+            $urgent_hourly_rate = get_user_meta( $user_id, 'urgent_hourly_rate', true );
+            if ( $urgent_hourly_rate ) {
+                OsAgentMeta::save_agent_meta_by_key($agent_id, 'urgent_hourly_rate', floatval($urgent_hourly_rate));
+                darsna_debug_log("Synced urgent_hourly_rate: " . $urgent_hourly_rate . " for agent_id: " . $agent_id);
+            } else {
+                darsna_debug_log("Urgent help is 'yes' but no urgent_hourly_rate found in user meta for agent_id: " . $agent_id);
+            }
         }
+        darsna_debug_log("sync_latepoint_data completed for agent_id: " . $agent_id . " (WP User ID: " . $user_id . ")");
     }
 
     /**
