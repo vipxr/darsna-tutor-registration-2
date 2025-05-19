@@ -507,6 +507,7 @@ class Darsna_Tutor_Reg_Public {
      * @param int $user_id WordPress User ID.
      */
     private function sync_latepoint_data($user_id) {
+        error_log('Attempting to sync user ' . $user_id . ' with LatePoint. LatePointAgentModel exists: ' . (class_exists('LatePointAgentModel') ? 'Yes' : 'No'));
         darsna_debug_log("sync_latepoint_data called for user_id: " . $user_id);
 
         if (!class_exists('LatePointAgentModel')) {
