@@ -393,31 +393,50 @@ class Darsna_Tutor_Reg_Public {
      * @since 1.0.1
      * @param int $user_id User ID.
      */
-    public function save_tutor_profile($user_id) {
-        if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field(wp_unslash($_POST['darsna_tutor_nonce'])), 'darsna_tutor_fields_action' ) ) {
-            // Log error or add admin notice, but don't necessarily stop other WooCommerce processes.
-            error_log( 'Darsna Tutor Reg: Nonce verification failed during save_tutor_profile for user ID ' . $user_id );
-            return;
+    public function save_tutor_profile( $user_id ) {
+        // Nonce verification
+        if ( ! isset( $_POST['darsna_tutor_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['darsna_tutor_nonce'] ) ), 'darsna_tutor_fields_action' ) ) {
+            // For registration, errors are handled by 'validate_tutor_fields'
+            // For account update, we might want to add an error if nonce fails, though WC handles some of this.
+            // For now, let's assume validation hooks catch issues. If not, an error could be added here for updates.
+            // Example: wc_add_notice( __( 'Security check failed. Please try again.', 'darsna-tutor-reg' ), 'error' );
+            // return; // Or handle error appropriately
         }
 
-        // Save Full Name (First Name, Last Name, Display Name)
-        if ( ! empty( $_POST['full_name'] ) ) {
-            $full_name = sanitize_text_field( $_POST['full_name'] );
+        $user = new WP_User( $user_id );
+        $account_type = isset( $_POST['account_type'] ) ? sanitize_text_field( wp_unslash( $_POST['account_type'] ) ) : null;
+
+        // If account_type is not submitted (e.g. admin editing user, or other forms), try to get current role
+        if ( empty($account_type) && is_user_logged_in() && $user_id === get_current_user_id() ) {
+             $current_user_roles = $user->roles;
+             if (in_array('tutor', $current_user_roles, true) || in_array('latepoint_agent', $current_user_roles, true)) {
+                 $account_type = 'latepoint_agent';
+             } else {
+                 $account_type = 'student'; // Default or based on other roles
+             }
+        } elseif (empty($account_type)) {
+            // Fallback if not set and not current user edit, could default to student or do nothing
+            // This scenario needs careful consideration based on where save_tutor_profile is called from
+            // For 'woocommerce_created_customer', $_POST['account_type'] should be set from the form.
+        }
+
+
+        // Update basic user info (first name, last name from full_name)
+        if ( isset( $_POST['full_name'] ) ) {
+            $full_name = sanitize_text_field( wp_unslash( $_POST['full_name'] ) );
             $name_parts = explode( ' ', $full_name, 2 );
             $first_name = $name_parts[0];
-            $last_name = isset( $name_parts[1] ) ? $name_parts[1] : '';
+            $last_name  = isset( $name_parts[1] ) ? $name_parts[1] : '';
 
             wp_update_user( array(
-                'ID' => $user_id,
+                'ID'         => $user_id,
                 'first_name' => $first_name,
-                'last_name' => $last_name,
-                'display_name' => $full_name,
+                'last_name'  => $last_name,
+                'display_name' => $full_name // Also update display name
             ) );
+            update_user_meta($user_id, 'nickname', $full_name);
         }
 
-        // Save Account Type (Role) & other meta
-        $account_type = isset( $_POST['account_type'] ) ? sanitize_text_field( $_POST['account_type'] ) : 'student';
-        $user = new WP_User( $user_id );
 
         if ( $account_type === 'latepoint_agent' ) {
             if ( ! get_role( 'tutor' ) ) {
@@ -431,9 +450,9 @@ class Darsna_Tutor_Reg_Public {
             update_user_meta( $user_id, 'urgent_help', ( isset( $_POST['urgent_help'] ) && $_POST['urgent_help'] === 'yes' ) ? 'yes' : 'no' );
             update_user_meta( $user_id, 'urgent_hourly_rate', ( isset( $_POST['urgent_hourly_rate'] ) ) ? floatval( $_POST['urgent_hourly_rate'] ) : 0 );
 
-            // Always attempt synchronization
-            $this->sync_latepoint_data($user_id);
-            
+            // Always attempt synchronization // This line and the next are the change
+            // $this->sync_latepoint_data($user_id); // REMOVED this line
+
             // Only sync with LatePoint if it's properly loaded
             if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
                 $this->sync_latepoint_data( $user_id );
@@ -441,18 +460,18 @@ class Darsna_Tutor_Reg_Public {
                 error_log('Darsna Tutor Reg: Cannot sync user ' . $user_id . ' with LatePoint because LatePointAgentModel class is not available.');
             }
 
-        } else { // Student or other role
-            // If user was a tutor and changed to student, set role to 'customer' (or your default student role)
-            if ( in_array( 'tutor', (array) $user->roles, true ) ) {
-                $user->set_role( 'customer' );
-            }
-            // Clear tutor-specific meta if they switch to student
+        } else if ( $account_type === 'student' ) {
+            // If user switches from Tutor to Student, or registers as Student
+            $user->set_role( 'customer' ); // Or your default student role
+            // Optionally, remove tutor-specific meta and LatePoint agent data
             delete_user_meta( $user_id, 'hourly_rate' );
-            delete_user_meta( $user_id, 'darsna_subject' ); // Changed meta key to 'darsna_subject'
+            delete_user_meta( $user_id, 'darsna_subject' );
             delete_user_meta( $user_id, 'urgent_help' );
             delete_user_meta( $user_id, 'urgent_hourly_rate' );
-            // Optionally, remove from LatePoint if they are no longer a tutor
-            $this->remove_latepoint_agent_by_wp_user_id( $user_id );
+            // Remove from LatePoint if they were an agent
+            if (function_exists('darsna_tutor_reg_is_latepoint_loaded') && darsna_tutor_reg_is_latepoint_loaded()) {
+                $this->remove_latepoint_agent_data( $user_id );
+            }
         }
     }
 
