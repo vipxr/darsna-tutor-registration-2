@@ -2,7 +2,7 @@ test
 === Tutor Registration for WooCommerce & LatePoint ===
 Contributors: Your Name
 Tags: woocommerce, latepoint, registration, tutor, student, user roles, custom fields
-Requires at least: 5.0
+Requires at least: 5.1
 Tested up to: 6.0
 Requires PHP: 7.2
 Stable tag: 1.0.1
