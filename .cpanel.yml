@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/darsnaco/public_html/wp-content/plugins/darsna-tutor-registration/
+    - /bin/cp -R * $DEPLOYPATH
