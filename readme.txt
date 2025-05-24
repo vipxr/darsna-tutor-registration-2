@@ -26,7 +26,7 @@ Student specific features:
 
 *   Standard WooCommerce registration.
 
-Key functionalities:
+Key functionalitie
 
 *   Adds custom fields to the WooCommerce registration form and 'My Account' > 'Edit Account' page.
 *   Validates these custom fields during registration and account updates.
