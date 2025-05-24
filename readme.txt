@@ -1,3 +1,4 @@
+test
 === Tutor Registration for WooCommerce & LatePoint ===
 Contributors: Your Name
 Tags: woocommerce, latepoint, registration, tutor, student, user roles, custom fields
