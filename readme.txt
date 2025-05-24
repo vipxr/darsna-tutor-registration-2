@@ -3,7 +3,8 @@ test
 Contributors: Your Name
 Tags: woocommerce, latepoint, registration, tutor, student, user roles, custom fields
 Requires at least: 5.1
-Tested up to: 6.0
+Tested up to: 6.0 mark
+
 Requires PHP: 7.2
 Stable tag: 1.0.1
 Licen: GPLv2 or later
