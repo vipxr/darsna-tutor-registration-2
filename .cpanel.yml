@@ -1,5 +1,6 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/darsnaco/public_html/wp-content/plugins/darsna-tutor-registration/
-    - /bin/cp -R * $DEPLOYPATH
+    - /usr/local/cpanel/3rdparty/bin/git reset --hard
+    - /usr/local/cpanel/3rdparty/bin/git pull origin main
+    
