@@ -56,7 +56,7 @@ class Darsna_Tutor_Checkout {
     }
 
     public function modify_phone_field($fields) {
-        $fields['billing_phone']['placeholder'] = 'Example: (962) 79 123 4567 or +44 20 7123 4567';
+        $fields['billing_phone']['placeholder'] = 'Example: 0096555555555 or +96555555555';
         return $fields;
     }
 
