@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Tutor Registration for WooCommerce & LatePoint - Checkout
- * Version: 3.2.1
- * Description: Tutor-only checkout with manual order approval for LatePoint agents
+ * Version: 3.3.0
+ * Description: Enhanced tutor checkout with service selection, hourly rates, and LatePoint integration
  * Requires PHP: 7.4
  * Author: Darsna
  * License: GPL v2 or later
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'DARSNA_TUTOR_REG_VERSION', '3.2.1' );
+define( 'DARSNA_TUTOR_REG_VERSION', '3.3.0' );
 define( 'DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DARSNA_TUTOR_REG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -60,6 +60,11 @@ class Darsna_Tutor_Checkout {
         add_action( 'init', [ $this, 'init' ] );
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_scripts' ] );
         add_action( 'woocommerce_after_checkout_validation', [ $this, 'validate_checkout_fields' ], 10, 2 );
+        
+        // Add tutor registration fields to checkout
+        add_action( 'woocommerce_after_checkout_billing_form', [ $this, 'add_tutor_registration_fields' ] );
+        add_action( 'woocommerce_checkout_process', [ $this, 'validate_tutor_fields' ] );
+        add_action( 'woocommerce_checkout_update_order_meta', [ $this, 'save_tutor_checkout_data' ] );
     }
 
     /**
@@ -322,6 +327,9 @@ class Darsna_Tutor_Checkout {
 
             $this->log( "Activating user {$user_id} as tutor/agent" );
 
+            // Get tutor data from their order
+            $tutor_data = $this->get_tutor_data_from_orders( $user_id );
+
             // Update user meta FIRST to prevent race conditions
             update_user_meta( $user_id, '_darsna_account_type', 'tutor' );
             update_user_meta( $user_id, '_darsna_subscription_active', 'yes' );
@@ -330,11 +338,25 @@ class Darsna_Tutor_Checkout {
                 update_user_meta( $user_id, '_darsna_subscription_id', $subscription->get_id() );
             }
 
+            // Store tutor-specific data
+            if ( $tutor_data ) {
+                update_user_meta( $user_id, '_darsna_tutor_service_id', $tutor_data['service_id'] );
+                update_user_meta( $user_id, '_darsna_tutor_hourly_rate', $tutor_data['hourly_rate'] );
+                update_user_meta( $user_id, '_darsna_tutor_bio', $tutor_data['bio'] );
+                
+                $this->log( "Stored tutor data - Service: {$tutor_data['service_id']}, Rate: {$tutor_data['hourly_rate']}" );
+            }
+
             // Assign LatePoint agent role
             $this->assign_latepoint_agent_role( $user_id );
 
             // Create/update LatePoint agent
             $sync_result = $this->sync_latepoint_agent( $user_id, 'active' );
+            
+            // Assign service to agent in LatePoint
+            if ( $sync_result && $tutor_data && $tutor_data['service_id'] ) {
+                $this->assign_service_to_agent( $user_id, $tutor_data['service_id'] );
+            }
             
             if ( $sync_result ) {
                 $this->log( "User {$user_id} successfully activated as agent" );
@@ -573,6 +595,9 @@ class Darsna_Tutor_Checkout {
         // Get user's latest order for additional data
         $latest_order = $this->get_user_latest_order( $user_id );
         
+        // Get tutor-specific data
+        $tutor_bio = get_user_meta( $user_id, '_darsna_tutor_bio', true );
+        
         // Prepare names
         $first_name = $user->first_name;
         $last_name = $user->last_name;
@@ -603,6 +628,7 @@ class Darsna_Tutor_Checkout {
             'display_name' => $user->display_name,
             'email' => $user->user_email,
             'phone' => $phone,
+            'bio' => $tutor_bio ? sanitize_textarea_field( $tutor_bio ) : '',
             'wp_user_id' => $user_id,
             'status' => 'active',
         ];
@@ -669,8 +695,8 @@ class Darsna_Tutor_Checkout {
         // Simple phone input setup
         wp_add_inline_script( 'jquery', $this->get_phone_input_script() );
         
-        // Add simple styling for phone input
-        wp_add_inline_style( 'woocommerce-general', $this->get_phone_input_styles() );
+        // Add simple styling for phone input and new fields
+        wp_add_inline_style( 'woocommerce-general', $this->get_checkout_styles() );
     }
 
     /**
@@ -698,14 +724,56 @@ class Darsna_Tutor_Checkout {
                         $(this).val(value);
                     });
                 }
+
+                // Add searchable functionality to service dropdown
+                var serviceSelect = $('#tutor_service');
+                if (serviceSelect.length) {
+                    // Add search input above select
+                    serviceSelect.before('<input type=\"text\" id=\"service-search\" placeholder=\"Search subjects...\" style=\"width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;\">');
+                    
+                    var searchInput = $('#service-search');
+                    var originalOptions = serviceSelect.find('option');
+                    
+                    searchInput.on('input', function() {
+                        var searchTerm = $(this).val().toLowerCase();
+                        
+                        serviceSelect.find('option').remove();
+                        serviceSelect.append('<option value=\"\">Select a subject...</option>');
+                        
+                        originalOptions.each(function() {
+                            var option = $(this);
+                            if (option.val() === '' || option.text().toLowerCase().includes(searchTerm)) {
+                                serviceSelect.append(option.clone());
+                            }
+                        });
+                    });
+                }
+
+                // Character counter for bio
+                var bioTextarea = $('#tutor_bio');
+                if (bioTextarea.length) {
+                    var maxLength = 500;
+                    bioTextarea.after('<div id=\"bio-counter\" style=\"font-size: 12px; color: #666; margin-top: 5px;\">0/' + maxLength + ' characters</div>');
+                    
+                    bioTextarea.on('input', function() {
+                        var currentLength = $(this).val().length;
+                        $('#bio-counter').text(currentLength + '/' + maxLength + ' characters');
+                        
+                        if (currentLength > maxLength) {
+                            $('#bio-counter').css('color', '#d63638');
+                        } else {
+                            $('#bio-counter').css('color', '#666');
+                        }
+                    });
+                }
             });
         ";
     }
 
     /**
-     * Get phone input styles
+     * Get checkout page styles
      */
-    private function get_phone_input_styles() {
+    private function get_checkout_styles() {
         return "
             #billing_phone {
                 font-family: monospace;
@@ -715,6 +783,47 @@ class Darsna_Tutor_Checkout {
                 font-size: 12px;
                 color: #666;
                 font-style: italic;
+            }
+            .tutor-field-group {
+                background: #f9f9f9;
+                border: 1px solid #e1e1e1;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            .tutor-field-group h3 {
+                margin-top: 0;
+                color: #0073aa;
+                border-bottom: 2px solid #0073aa;
+                padding-bottom: 10px;
+            }
+            .tutor-field-row {
+                display: flex;
+                gap: 20px;
+                margin-bottom: 15px;
+            }
+            .tutor-field-row .form-row {
+                flex: 1;
+            }
+            #tutor_service, #tutor_hourly_rate {
+                width: 100%;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            #tutor_bio {
+                width: 100%;
+                min-height: 80px;
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                resize: vertical;
+            }
+            .required-field::after {
+                content: ' *';
+                color: #d63638;
             }
         ";
     }
@@ -772,6 +881,152 @@ class Darsna_Tutor_Checkout {
             if ( empty( $data[ $field ] ) ) {
                 $errors->add( 'validation', $message );
             }
+        }
+    }
+
+    /**
+     * Add tutor registration fields to checkout
+     */
+    public function add_tutor_registration_fields( $checkout ) {
+        echo '<div class="tutor-field-group">';
+        echo '<h3>' . __( 'Tutor Information', 'darsna-tutor-registration' ) . '</h3>';
+        
+        echo '<div class="tutor-field-row">';
+        
+        // Service/Subject Selection
+        echo '<div class="form-row form-row-first">';
+        $services = $this->get_latepoint_services();
+        $service_options = [ '' => __( 'Select a subject...', 'darsna-tutor-registration' ) ];
+        
+        foreach ( $services as $service ) {
+            $service_options[ $service->id ] = $service->name;
+        }
+        
+        woocommerce_form_field( 'tutor_service', [
+            'type'        => 'select',
+            'class'       => [ 'form-row-wide' ],
+            'label'       => __( 'Subject to teach', 'darsna-tutor-registration' ) . ' <span class="required-field"></span>',
+            'required'    => true,
+            'options'     => $service_options,
+        ], $checkout->get_value( 'tutor_service' ) );
+        echo '</div>';
+        
+        // Hourly Rate Selection
+        echo '<div class="form-row form-row-last">';
+        $currency_symbol = get_woocommerce_currency_symbol();
+        $rate_options = [ '' => __( 'Select hourly rate...', 'darsna-tutor-registration' ) ];
+        
+        for ( $rate = 5; $rate <= 50; $rate += 5 ) {
+            $rate_options[ $rate ] = $currency_symbol . $rate . __( '/hour', 'darsna-tutor-registration' );
+        }
+        
+        woocommerce_form_field( 'tutor_hourly_rate', [
+            'type'        => 'select',
+            'class'       => [ 'form-row-wide' ],
+            'label'       => __( 'Hourly Rate', 'darsna-tutor-registration' ) . ' <span class="required-field"></span>',
+            'required'    => true,
+            'options'     => $rate_options,
+        ], $checkout->get_value( 'tutor_hourly_rate' ) );
+        echo '</div>';
+        
+        echo '</div>'; // End tutor-field-row
+        
+        // Bio/Specialties (Optional)
+        woocommerce_form_field( 'tutor_bio', [
+            'type'        => 'textarea',
+            'class'       => [ 'form-row-wide' ],
+            'label'       => __( 'Brief Bio / Specialties (Optional)', 'darsna-tutor-registration' ),
+            'placeholder' => __( 'Tell students about your background, experience, and teaching specialties...', 'darsna-tutor-registration' ),
+            'custom_attributes' => [
+                'maxlength' => '500',
+                'rows'      => '4',
+            ],
+        ], $checkout->get_value( 'tutor_bio' ) );
+        
+        echo '</div>'; // End tutor-field-group
+    }
+
+    /**
+     * Validate tutor-specific fields
+     */
+    public function validate_tutor_fields() {
+        // Validate service selection
+        if ( empty( $_POST['tutor_service'] ) ) {
+            wc_add_notice( __( 'Please select a subject to teach.', 'darsna-tutor-registration' ), 'error' );
+        } else {
+            $selected_service = intval( $_POST['tutor_service'] );
+            $services = $this->get_latepoint_services();
+            $valid_service = false;
+            
+            foreach ( $services as $service ) {
+                if ( $service->id === $selected_service ) {
+                    $valid_service = true;
+                    break;
+                }
+            }
+            
+            if ( ! $valid_service ) {
+                wc_add_notice( __( 'Please select a valid subject.', 'darsna-tutor-registration' ), 'error' );
+            }
+        }
+        
+        // Validate hourly rate
+        if ( empty( $_POST['tutor_hourly_rate'] ) ) {
+            wc_add_notice( __( 'Please select your hourly rate.', 'darsna-tutor-registration' ), 'error' );
+        } else {
+            $selected_rate = intval( $_POST['tutor_hourly_rate'] );
+            if ( $selected_rate < 5 || $selected_rate > 50 || $selected_rate % 5 !== 0 ) {
+                wc_add_notice( __( 'Please select a valid hourly rate.', 'darsna-tutor-registration' ), 'error' );
+            }
+        }
+        
+        // Validate bio length (if provided)
+        if ( ! empty( $_POST['tutor_bio'] ) && strlen( $_POST['tutor_bio'] ) > 500 ) {
+            wc_add_notice( __( 'Bio must be 500 characters or less.', 'darsna-tutor-registration' ), 'error' );
+        }
+    }
+
+    /**
+     * Save tutor checkout data to order meta
+     */
+    public function save_tutor_checkout_data( $order_id ) {
+        if ( ! empty( $_POST['tutor_service'] ) ) {
+            update_post_meta( $order_id, '_tutor_service_id', sanitize_text_field( $_POST['tutor_service'] ) );
+        }
+        
+        if ( ! empty( $_POST['tutor_hourly_rate'] ) ) {
+            update_post_meta( $order_id, '_tutor_hourly_rate', sanitize_text_field( $_POST['tutor_hourly_rate'] ) );
+        }
+        
+        if ( ! empty( $_POST['tutor_bio'] ) ) {
+            update_post_meta( $order_id, '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ) );
+        }
+    }
+
+    /**
+     * Get LatePoint services for dropdown
+     */
+    private function get_latepoint_services() {
+        if ( ! class_exists( '\OsServiceModel' ) ) {
+            $this->log( 'OsServiceModel class not found - LatePoint may not be active' );
+            return [];
+        }
+
+        try {
+            $service_model = new \OsServiceModel();
+            $services = $service_model->where( [ 'status' => 'active' ] )->get_results();
+            
+            if ( ! $services ) {
+                $this->log( 'No active services found in LatePoint' );
+                return [];
+            }
+            
+            $this->log( 'Found ' . count( $services ) . ' active LatePoint services' );
+            return $services;
+            
+        } catch ( Exception $e ) {
+            $this->log( 'Error getting LatePoint services: ' . $e->getMessage() );
+            return [];
         }
     }
 
@@ -851,6 +1106,109 @@ class Darsna_Tutor_Checkout {
         ] );
 
         return ! empty( $orders ) ? $orders[0] : null;
+    }
+
+    /**
+     * Get tutor data from user's orders
+     */
+    private function get_tutor_data_from_orders( $user_id ) {
+        $orders = wc_get_orders( [
+            'customer' => $user_id,
+            'limit' => 1,
+            'orderby' => 'date',
+            'order' => 'DESC',
+        ] );
+
+        if ( empty( $orders ) ) {
+            $this->log( "No orders found for user {$user_id}" );
+            return null;
+        }
+
+        $order = $orders[0];
+        $service_id = $order->get_meta( '_tutor_service_id' );
+        $hourly_rate = $order->get_meta( '_tutor_hourly_rate' );
+        $bio = $order->get_meta( '_tutor_bio' );
+
+        if ( empty( $service_id ) || empty( $hourly_rate ) ) {
+            $this->log( "Missing tutor data in order #{$order->get_id()} for user {$user_id}" );
+            return null;
+        }
+
+        return [
+            'service_id' => intval( $service_id ),
+            'hourly_rate' => intval( $hourly_rate ),
+            'bio' => sanitize_textarea_field( $bio ),
+        ];
+    }
+
+    /**
+     * Assign service to agent in LatePoint
+     */
+    private function assign_service_to_agent( $user_id, $service_id ) {
+        if ( ! class_exists( '\OsAgentModel' ) || ! class_exists( '\OsServiceModel' ) ) {
+            $this->log( 'LatePoint models not found for service assignment' );
+            return false;
+        }
+
+        try {
+            // Get the agent
+            $agent_model = new \OsAgentModel();
+            $agents = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
+
+            if ( empty( $agents ) ) {
+                $this->log( "No LatePoint agent found for user {$user_id}" );
+                return false;
+            }
+
+            $agent = $agents[0];
+            $agent_id = $agent->id;
+
+            // Verify service exists
+            $service_model = new \OsServiceModel();
+            $service = $service_model->where( [ 'id' => $service_id ] )->get_results();
+
+            if ( empty( $service ) ) {
+                $this->log( "Service {$service_id} not found in LatePoint" );
+                return false;
+            }
+
+            // Use LatePoint's connection table to assign service to agent
+            global $wpdb;
+            $connections_table = $wpdb->prefix . 'latepoint_agent_services';
+            
+            // Check if connection already exists
+            $existing = $wpdb->get_var( $wpdb->prepare(
+                "SELECT id FROM {$connections_table} WHERE agent_id = %d AND service_id = %d",
+                $agent_id,
+                $service_id
+            ) );
+
+            if ( ! $existing ) {
+                $result = $wpdb->insert(
+                    $connections_table,
+                    [
+                        'agent_id' => $agent_id,
+                        'service_id' => $service_id,
+                    ],
+                    [ '%d', '%d' ]
+                );
+
+                if ( $result ) {
+                    $this->log( "Successfully assigned service {$service_id} to agent {$agent_id} for user {$user_id}" );
+                    return true;
+                } else {
+                    $this->log( "Failed to assign service to agent. MySQL error: " . $wpdb->last_error );
+                    return false;
+                }
+            } else {
+                $this->log( "Service {$service_id} already assigned to agent {$agent_id}" );
+                return true;
+            }
+
+        } catch ( Exception $e ) {
+            $this->log( "Error assigning service to agent: " . $e->getMessage() );
+            return false;
+        }
     }
 
     /**
@@ -1530,11 +1888,33 @@ class Darsna_Tutor_Checkout {
         $subscription_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
         $subscription_id = get_user_meta( $user_id, '_darsna_subscription_id', true );
         
+        // Tutor-specific meta
+        $tutor_service_id = get_user_meta( $user_id, '_darsna_tutor_service_id', true );
+        $tutor_hourly_rate = get_user_meta( $user_id, '_darsna_tutor_hourly_rate', true );
+        $tutor_bio = get_user_meta( $user_id, '_darsna_tutor_bio', true );
+        
         $debug_info[] = "";
         $debug_info[] = "=== USER META ===";
         $debug_info[] = "Account Type: " . ( $account_type ?: 'Not set' );
         $debug_info[] = "Subscription Active: " . ( $subscription_active ?: 'Not set' );
         $debug_info[] = "Subscription ID: " . ( $subscription_id ?: 'Not set' );
+        
+        $debug_info[] = "";
+        $debug_info[] = "=== TUTOR DATA ===";
+        $debug_info[] = "Service ID: " . ( $tutor_service_id ?: 'Not set' );
+        $debug_info[] = "Hourly Rate: " . ( $tutor_hourly_rate ? get_woocommerce_currency_symbol() . $tutor_hourly_rate . '/hour' : 'Not set' );
+        $debug_info[] = "Bio Length: " . ( $tutor_bio ? strlen( $tutor_bio ) . ' characters' : 'Not set' );
+        
+        // Get service name if set
+        if ( $tutor_service_id ) {
+            $services = $this->get_latepoint_services();
+            foreach ( $services as $service ) {
+                if ( $service->id == $tutor_service_id ) {
+                    $debug_info[] = "Service Name: " . $service->name;
+                    break;
+                }
+            }
+        }
 
         // Check subscriptions
         if ( function_exists( 'wcs_get_users_subscriptions' ) ) {
