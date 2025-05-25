@@ -277,17 +277,20 @@ class Darsna_Tutor_Checkout {
             return;
         }
 
-        // Set processing flag for 30 seconds
-        set_transient( $processing_key, true, 30 );
+        // Set processing flag for 60 seconds
+        set_transient( $processing_key, true, 60 );
 
         try {
+            $this->log( "Activating subscription and agent for user {$user_id}" );
+            
             // Activate subscription if not already active
             if ( $subscription->get_status() !== 'active' ) {
                 $subscription->update_status( 'active', 'Activated after manual order completion.' );
             }
 
-            // Activate user as agent
+            // Activate user as agent (this has its own duplicate protection)
             $this->activate_user_as_agent( $user_id, $subscription );
+            
         } finally {
             // Always clear the processing flag
             delete_transient( $processing_key );
@@ -299,6 +302,16 @@ class Darsna_Tutor_Checkout {
      */
     private function activate_user_as_agent( $user_id, $subscription = null ) {
         try {
+            // Check if already processing to prevent double activation
+            $processing_key = '_darsna_processing_user_' . $user_id;
+            if ( get_transient( $processing_key ) ) {
+                $this->log( "User {$user_id} already being processed, skipping duplicate activation" );
+                return;
+            }
+
+            // Set processing flag for 60 seconds
+            set_transient( $processing_key, true, 60 );
+
             $this->log( "Activating user {$user_id} as tutor/agent" );
 
             // Update user meta
@@ -313,10 +326,21 @@ class Darsna_Tutor_Checkout {
             $this->assign_latepoint_agent_role( $user_id );
 
             // Create/update LatePoint agent
-            $this->sync_latepoint_agent( $user_id, 'active' );
+            $sync_result = $this->sync_latepoint_agent( $user_id, 'active' );
+            
+            if ( $sync_result ) {
+                $this->log( "User {$user_id} successfully activated as agent" );
+            } else {
+                $this->log( "User {$user_id} activated but LatePoint sync failed" );
+            }
+
+            // Clear processing flag
+            delete_transient( $processing_key );
 
         } catch ( Exception $e ) {
             $this->log( "Error activating user as agent: " . $e->getMessage() );
+            // Always clear processing flag on error
+            delete_transient( '_darsna_processing_user_' . $user_id );
         }
     }
 
@@ -401,16 +425,74 @@ class Darsna_Tutor_Checkout {
                     
                     $this->log( "Creating new LatePoint agent with data: " . json_encode( $agent_data ) );
                     
-                    // Clear any existing data and set new data
-                    $new_agent = new \OsAgentModel();
-                    foreach ( $agent_data as $key => $value ) {
-                        $new_agent->set_data( $key, $value );
+                    // Check if email already exists in LatePoint
+                    $existing_by_email = $agent_model->where( [ 'email' => $agent_data['email'] ] )->get_results();
+                    if ( $existing_by_email ) {
+                        $this->log( "WARNING: Agent with email {$agent_data['email']} already exists - updating instead" );
+                        $update_result = $agent_model->update_where( 
+                            [ 'email' => $agent_data['email'] ], 
+                            array_merge( $agent_data, [ 'wp_user_id' => $user_id ] )
+                        );
+                        $this->log( "Updated existing agent by email: " . ( $update_result ? 'success' : 'failed' ) );
+                        return $update_result;
                     }
                     
+                    // Try to get LatePoint database connection details for debugging
+                    global $wpdb;
+                    $this->log( "Database info - WordPress prefix: {$wpdb->prefix}" );
+                    
+                    // Check if LatePoint tables exist
+                    $agents_table = $wpdb->prefix . 'latepoint_agents';
+                    $table_exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $agents_table ) );
+                    $this->log( "LatePoint agents table ({$agents_table}) exists: " . ( $table_exists ? 'yes' : 'no' ) );
+                    
+                    if ( $table_exists ) {
+                        // Check table structure
+                        $columns = $wpdb->get_results( "DESCRIBE {$agents_table}" );
+                        $column_names = array_column( $columns, 'Field' );
+                        $this->log( "Table columns: " . implode( ', ', $column_names ) );
+                        
+                        // Check for required fields
+                        $required_fields = [ 'first_name', 'last_name', 'email', 'wp_user_id' ];
+                        $missing_fields = array_diff( $required_fields, $column_names );
+                        if ( $missing_fields ) {
+                            $this->log( "ERROR: Missing required fields in LatePoint table: " . implode( ', ', $missing_fields ) );
+                        }
+                    }
+                    
+                    // Clear any existing data and set new data
+                    $new_agent = new \OsAgentModel();
+                    
+                    // Set data one by one and check for errors
+                    foreach ( $agent_data as $key => $value ) {
+                        try {
+                            $new_agent->set_data( $key, $value );
+                            $this->log( "Set {$key}: {$value}" );
+                        } catch ( Exception $e ) {
+                            $this->log( "ERROR setting {$key}: " . $e->getMessage() );
+                        }
+                    }
+                    
+                    // Enable error reporting temporarily
+                    $old_error_reporting = error_reporting( E_ALL );
+                    $old_display_errors = ini_get( 'display_errors' );
+                    ini_set( 'display_errors', 1 );
+                    
+                    // Capture any PHP errors during save
+                    ob_start();
                     $save_result = $new_agent->save();
+                    $save_output = ob_get_clean();
+                    
+                    // Restore error reporting
+                    error_reporting( $old_error_reporting );
+                    ini_set( 'display_errors', $old_display_errors );
+                    
+                    if ( $save_output ) {
+                        $this->log( "Save output/errors: " . $save_output );
+                    }
                     
                     if ( $save_result ) {
-                        $agent_id = $new_agent->id;
+                        $agent_id = $new_agent->id ?? 'unknown';
                         $this->log( "Successfully created LatePoint agent ID: {$agent_id} for user {$user_id}" );
                         
                         // Verify creation
@@ -420,11 +502,23 @@ class Darsna_Tutor_Checkout {
                         } else {
                             $this->log( "ERROR: Agent creation failed - not found in database after save" );
                         }
+                        
+                        return true;
                     } else {
                         $this->log( "ERROR: Failed to save new LatePoint agent for user {$user_id}" );
+                        
+                        // Try direct database insertion as fallback
+                        $this->log( "Attempting direct database insertion as fallback..." );
+                        $insert_result = $this->direct_agent_insert( $agent_data );
+                        if ( $insert_result ) {
+                            $this->log( "Direct database insertion successful" );
+                            return true;
+                        } else {
+                            $this->log( "Direct database insertion also failed" );
+                        }
+                        
+                        return false;
                     }
-                    
-                    return $save_result;
                 } else {
                     $this->log( "No existing agent found for user {$user_id} and status is {$status} - nothing to do" );
                 }
@@ -502,6 +596,47 @@ class Darsna_Tutor_Checkout {
         // If no + at the beginning, add it
         $digits_only = preg_replace( '/\D/', '', $phone );
         return '+' . $digits_only;
+    }
+
+    /**
+     * Direct database insertion fallback for LatePoint agents
+     */
+    private function direct_agent_insert( $agent_data ) {
+        global $wpdb;
+        
+        try {
+            $table_name = $wpdb->prefix . 'latepoint_agents';
+            
+            // Prepare data for insertion
+            $insert_data = [
+                'first_name' => $agent_data['first_name'] ?? '',
+                'last_name' => $agent_data['last_name'] ?? '',
+                'display_name' => $agent_data['display_name'] ?? '',
+                'email' => $agent_data['email'] ?? '',
+                'phone' => $agent_data['phone'] ?? '',
+                'wp_user_id' => $agent_data['wp_user_id'] ?? 0,
+                'status' => $agent_data['status'] ?? 'active',
+                'created_date' => current_time( 'mysql' ),
+                'updated_date' => current_time( 'mysql' ),
+            ];
+            
+            $this->log( "Direct insert data: " . json_encode( $insert_data ) );
+            
+            $result = $wpdb->insert( $table_name, $insert_data );
+            
+            if ( $result === false ) {
+                $this->log( "Direct insert failed. MySQL error: " . $wpdb->last_error );
+                return false;
+            } else {
+                $insert_id = $wpdb->insert_id;
+                $this->log( "Direct insert successful. Agent ID: {$insert_id}" );
+                return true;
+            }
+            
+        } catch ( Exception $e ) {
+            $this->log( "Exception in direct_agent_insert: " . $e->getMessage() );
+            return false;
+        }
     }
 
     /**
