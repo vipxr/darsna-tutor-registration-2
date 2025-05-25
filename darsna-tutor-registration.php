@@ -17,227 +17,49 @@ define('DARSNA_TUTOR_REG_VERSION', '3.1.0');
 define('DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
 class Darsna_Tutor_Checkout {
-    
     public function __construct() {
         // Core initialization
-        add_action('init', array($this, 'init'));
+        add_action('woocommerce_order_status_completed', [$this, 'handle_order_completed']);
+        add_action('woocommerce_subscription_status_updated', [$this, 'handle_subscription_status'], 10, 3);
         
         // Phone number handling
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_phone_scripts'));
-        add_action('woocommerce_after_checkout_validation', array($this, 'validate_phone_number'), 10, 2);
-    }
-    
-    public function init() {
-        if (!$this->check_dependencies()) {
-            add_action('admin_notices', array($this, 'dependency_notice'));
-            return;
-        }
-        
-        add_action('woocommerce_subscription_status_updated', array($this, 'handle_subscription_status'), 10, 3);
-        add_action('woocommerce_order_status_completed', array($this, 'handle_order_completed'), 10, 1);
-        add_filter('woocommerce_cod_process_payment_order_status', array($this, 'force_cod_orders_on_hold'), 10, 2);
-        add_action('woocommerce_subscription_payment_complete', array($this, 'check_cod_subscription_activation'), 5, 1);
-        add_filter('wp_nav_menu_items', array($this, 'add_dashboard_logout_menu_links'), 99, 2);
-    }
-    
-    private function check_dependencies() {
-        if (!function_exists('is_plugin_active')) {
-            include_once(ABSPATH . 'wp-admin/includes/plugin.php');
-        }
-        
-        $required_plugins = array(
-            'woocommerce/woocommerce.php' => 'WooCommerce',
-            'latepoint/latepoint.php' => 'LatePoint',
-            'woocommerce-subscriptions/woocommerce-subscriptions.php' => 'WooCommerce Subscriptions'
-        );
-        
-        foreach ($required_plugins as $plugin => $name) {
-            if (!is_plugin_active($plugin)) {
-                if (WP_DEBUG) {
-                    error_log(sprintf('[DarsnaTutorCheckout] Required plugin %s is not active', $name));
-                }
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    public function dependency_notice() {
-        if (!$this->check_dependencies()) {
-            $message = __('Tutor Registration requires WooCommerce, WooCommerce Subscriptions, and LatePoint plugins to be active. Some features may not work correctly.', 'darsna-tutor-registration');
-            printf('<div class="error"><p>%s</p></div>', esc_html($message));
-        }
-    }
-    
-    public function force_cod_orders_on_hold($status, $order) {
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Setting COD order %d status to on-hold', $order->get_id()));
-        }
-        return 'on-hold';
+        add_action('woocommerce_after_checkout_validation', [$this, 'validate_phone_format'], 10, 2);
+        add_filter('woocommerce_billing_fields', [$this, 'modify_phone_field']);
     }
 
-    public function check_cod_subscription_activation($subscription) {
-        $parent = wc_get_order($subscription->get_parent_id());
-        if ($parent && $parent->get_payment_method() === 'cod') {
-            if (WP_DEBUG) {
-                error_log(sprintf('[DarsnaTutorCheckout] Enforcing on-hold status for COD subscription %d', $subscription->get_id()));
-            }
-            $subscription->update_status('on-hold', 'Awaiting manual review for COD order.');
-        }
-    }
-    
-    public function handle_order_completed($order_id) {
-        $order = wc_get_order($order_id);
-        if (!$order) return;
-        
-        if (function_exists('wcs_order_contains_subscription') && wcs_order_contains_subscription($order)) {
-            $subscriptions = wcs_get_subscriptions_for_order($order);
-            foreach ($subscriptions as $subscription) {
-                $user_id = $subscription->get_user_id();
-                
-                if ($subscription->get_status() !== 'active') {
-                    $subscription->update_status('active', 'Subscription activated after manual order completion.');
-                }
-                
-                if ($user_id) {
-                    $this->activate_subscription($subscription, $user_id);
-                }
-            }
-        }
-    }
-    
-    public function handle_subscription_status($subscription, $new_status, $old_status) {
-        $user_id = $subscription->get_user_id();
-        if (!$user_id) {
-            if (WP_DEBUG) {
-                error_log('[DarsnaTutorCheckout] No user ID found for subscription');
-            }
-            return;
-        }
-        
-        if ($old_status === $new_status) return;
-        
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Processing subscription status change for user %d: %s -> %s',
-                $user_id, $old_status, $new_status));
-        }
-        
-        if ($new_status === 'active') {
-            $parent_order = wc_get_order($subscription->get_parent_id());
-            if ($parent_order && $parent_order->get_status() === 'completed') {
-                $this->activate_subscription($subscription, $user_id);
-            } else {
-                $subscription->update_status('on-hold', 'Subscription on hold pending manual approval.');
-            }
-        } 
-        elseif (in_array($new_status, array('expired', 'cancelled', 'pending-cancel', 'on-hold', 'suspended', 'pending', 'trash'))) {
-            $this->deactivate_subscription($user_id);
-        }
-    }
-    
-    private function activate_subscription($subscription, $user_id) {
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Activating subscription for user %d', $user_id));
-        }
-        
-        update_user_meta($user_id, '_darsna_account_type', 'tutor');
-        update_user_meta($user_id, '_darsna_subscription_active', 'yes');
-        
-        $this->assign_latepoint_agent_role($user_id);
-        $this->create_latepoint_agent($user_id);
-        
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Subscription activation completed for user %d', $user_id));
-        }
-    }
-    
-    private function deactivate_subscription($user_id) {
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Deactivating subscription for user %d', $user_id));
-        }
-        
-        $this->remove_latepoint_agent($user_id);
-        
-        $user = new WP_User($user_id);
-        $user->set_role('customer');
-        update_user_meta($user_id, '_darsna_subscription_active', 'no');
-        
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Subscription deactivation completed for user %d', $user_id));
-        }
-    }
-    
-    private function assign_latepoint_agent_role($user_id) {
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] Assigning LatePoint Agent role to user %d', $user_id));
-        }
-        
-        $user = new WP_User($user_id);
-        $old_roles = $user->roles;
-        $user->set_role('latepoint_agent');
-        
-        // Verify role was assigned
-        $user = new WP_User($user_id);
-        $new_roles = $user->roles;
-        
-        if (WP_DEBUG) {
-            error_log(sprintf('[DarsnaTutorCheckout] User %d roles changed from %s to %s',
-                $user_id,
-                implode(', ', $old_roles),
-                implode(', ', $new_roles)
-            ));
-        }
-    }
-    
     private function format_phone_for_latepoint($phone, $country) {
-        // strip non-digits and plus
+        // Strip non-digit characters except leading +
+        $has_plus = strpos(trim($phone), '+') === 0;
         $digits = preg_replace('/[^\d]/', '', $phone);
-        // look up country calling code (no "+")
-        $calling_code = WC()->countries->get_country_calling_code($country);
-        // remove leading zeros
-        $digits = ltrim($digits, '0');
-        // build E.164 number
-        return '+' . ltrim($calling_code, '+') . $digits;
+
+        // Get country code from WooCommerce
+        if ($country && function_exists('WC')) {
+            $calling_code = ltrim(WC()->countries->get_country_calling_code($country), '+');
+            
+            // Remove country code if already present
+            if (strpos($digits, $calling_code) === 0) {
+                $digits = substr($digits, strlen($calling_code));
+            }
+            
+            return '+' . $calling_code . $digits;
+        }
+        
+        return $has_plus ? '+' . $digits : '+' . $digits;
     }
 
-    // Constructor moved and merged above
-
-    public function enqueue_phone_scripts() {
-        if (is_checkout()) {
-            wp_enqueue_script('iti-js',
-                'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/intlTelInput.min.js',
-                ['jquery'], null, true
-            );
-            wp_enqueue_style('iti-css',
-                'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/css/intlTelInput.min.css'
-            );
-            wp_add_inline_script('iti-js', "
-                jQuery(function($){
-                    var input = document.querySelector('#billing_phone');
-                    window.intlTelInput(input, {
-                        utilsScript: 'https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.8/js/utils.js',
-                        initialCountry: 'auto',
-                        geoIpLookup: function(callback) {
-                            $.get('https://ipinfo.io', function() {}, 'jsonp').always(function(resp) {
-                                var country = (resp && resp.country) ? resp.country : 'us';
-                                callback(country);
-                            });
-                        },
-                    });
-                });
-            ");
+    public function validate_phone_format($data, $errors) {
+        $phone = $data['billing_phone'] ?? '';
+        
+        if (!preg_match('/^[\d+\-\(\)\s]{6,20}$/', $phone)) {
+            $errors->add('validation', 'Please enter a valid phone number with digits, spaces, +, -, or parentheses');
         }
     }
 
-    public function validate_phone_number($data, $errors) {
-        if (!preg_match('/^\+\d{8,15}$/', $data['billing_phone'])) {
-            $errors->add('validation',
-                'Please enter a valid international phone, e.g. +1XXXXXXXXXX.'
-            );
-        }
+    public function modify_phone_field($fields) {
+        $fields['billing_phone']['placeholder'] = 'Example: (962) 79 123 4567 or +44 20 7123 4567';
+        return $fields;
     }
-    
+
     private function create_latepoint_agent($user_id) {
         if (!class_exists('\OsAgentModel')) {
             if (WP_DEBUG) {
@@ -280,6 +102,10 @@ class Darsna_Tutor_Checkout {
         
         if (!empty($customer_orders)) {
             $order = wc_get_order($customer_orders[0]);
+            $formatted_phone = $this->format_phone_for_latepoint(
+                $order->get_billing_phone(),
+                $order->get_billing_country()
+            );
             if ($order) {
                 $raw_phone = $order->get_billing_phone();
                 $billing_country = $order->get_billing_country();
