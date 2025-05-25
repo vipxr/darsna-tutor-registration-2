@@ -19,7 +19,12 @@ define('DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path(__FILE__));
 class Darsna_Tutor_Checkout {
     
     public function __construct() {
+        // Core initialization
         add_action('init', array($this, 'init'));
+        
+        // Phone number handling
+        add_action('wp_enqueue_scripts', array($this, 'enqueue_phone_scripts'));
+        add_action('woocommerce_after_checkout_validation', array($this, 'validate_phone_number'), 10, 2);
     }
     
     public function init() {
@@ -196,11 +201,7 @@ class Darsna_Tutor_Checkout {
         return '+' . ltrim($calling_code, '+') . $digits;
     }
 
-    public function __construct() {
-        add_action('init', array($this, 'init'));
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_phone_scripts'));
-        add_action('woocommerce_after_checkout_validation', array($this, 'validate_phone_number'), 10, 2);
-    }
+    // Constructor moved and merged above
 
     public function enqueue_phone_scripts() {
         if (is_checkout()) {
