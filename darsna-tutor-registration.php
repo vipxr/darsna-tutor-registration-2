@@ -63,6 +63,15 @@ class Darsna_Tutor_Checkout {
     }
 
     /**
+     * Log messages for debugging
+     */
+    private function log( $message ) {
+        if ( WP_DEBUG && WP_DEBUG_LOG ) {
+            error_log( '[DarsnaTutorCheckout] ' . $message );
+        }
+    }
+
+    /**
      * Initialize plugin functionality
      */
     public function init() {
@@ -1147,6 +1156,334 @@ class Darsna_Tutor_Checkout {
             </div>
         </div>
         <?php
+    }
+
+    /**
+     * AJAX handler for syncing agent
+     */
+    public function ajax_sync_agent() {
+        check_ajax_referer( 'darsna_admin_nonce', 'nonce' );
+        
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'Unauthorized' );
+        }
+
+        $user_id = intval( $_POST['user_id'] ?? 0 );
+        
+        if ( ! $user_id ) {
+            wp_send_json_error( 'Invalid user ID' );
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            wp_send_json_error( 'User not found' );
+        }
+
+        // Determine status based on subscription
+        $subscription_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
+        $status = ( $subscription_active === 'yes' ) ? 'active' : 'disabled';
+
+        $result = $this->sync_latepoint_agent( $user_id, $status );
+        
+        if ( $result ) {
+            wp_send_json_success( 'Agent synced successfully' );
+        } else {
+            wp_send_json_error( 'Failed to sync agent' );
+        }
+    }
+
+    /**
+     * AJAX handler for debugging user
+     */
+    public function ajax_debug_user() {
+        check_ajax_referer( 'darsna_admin_nonce', 'nonce' );
+        
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'Unauthorized' );
+        }
+
+        $user_id = intval( $_POST['user_id'] ?? 0 );
+        
+        if ( ! $user_id ) {
+            wp_send_json_error( 'Invalid user ID' );
+        }
+
+        // Get the debug info
+        $debug_info = $this->get_debug_info( $user_id );
+        
+        wp_send_json_success( $debug_info );
+    }
+
+    /**
+     * AJAX handler for getting logs
+     */
+    public function ajax_get_logs() {
+        check_ajax_referer( 'darsna_admin_nonce', 'nonce' );
+        
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_die( 'Unauthorized' );
+        }
+
+        ob_start();
+        $this->display_logs();
+        $logs_html = ob_get_clean();
+        
+        wp_send_json_success( $logs_html );
+    }
+
+    /**
+     * Get dashboard statistics
+     */
+    private function get_dashboard_stats() {
+        $stats = [
+            'total_tutors' => 0,
+            'active_subscriptions' => 0,
+            'latepoint_agents' => 0,
+            'pending_orders' => 0,
+        ];
+
+        // Get total tutors (users with tutor account type)
+        $tutors = get_users([
+            'meta_key' => '_darsna_account_type',
+            'meta_value' => 'tutor',
+            'count_total' => true,
+        ]);
+        $stats['total_tutors'] = $tutors->total_users ?? 0;
+
+        // Get active subscriptions
+        if ( function_exists( 'wcs_get_subscriptions' ) ) {
+            $active_subs = wcs_get_subscriptions([
+                'subscription_status' => 'active',
+                'limit' => -1,
+            ]);
+            $stats['active_subscriptions'] = count( $active_subs );
+        }
+
+        // Get LatePoint agents
+        if ( class_exists( '\OsAgentModel' ) ) {
+            $agent_model = new \OsAgentModel();
+            $agents = $agent_model->where([ 'status' => 'active' ])->get_results();
+            $stats['latepoint_agents'] = count( $agents );
+        }
+
+        // Get pending orders
+        $pending_orders = wc_get_orders([
+            'status' => 'on-hold',
+            'payment_method' => 'cod',
+            'limit' => -1,
+            'return' => 'ids',
+        ]);
+        $stats['pending_orders'] = count( $pending_orders );
+
+        return $stats;
+    }
+
+    /**
+     * Get tutors data for admin table
+     */
+    private function get_tutors_data() {
+        $tutors = [];
+        
+        $users = get_users([
+            'meta_key' => '_darsna_account_type',
+            'meta_value' => 'tutor',
+        ]);
+
+        foreach ( $users as $user ) {
+            $subscription_active = get_user_meta( $user->ID, '_darsna_subscription_active', true );
+            
+            // Check LatePoint agent status
+            $latepoint_status = 'none';
+            if ( class_exists( '\OsAgentModel' ) ) {
+                $agent_model = new \OsAgentModel();
+                $agent = $agent_model->where([ 'wp_user_id' => $user->ID ])->get_results();
+                if ( $agent ) {
+                    $latepoint_status = $agent[0]->status ?? 'unknown';
+                }
+            }
+
+            $tutors[] = [
+                'user_id' => $user->ID,
+                'name' => $user->display_name ?: ( $user->first_name . ' ' . $user->last_name ),
+                'email' => $user->user_email,
+                'roles' => $user->roles,
+                'subscription_status' => $subscription_active === 'yes' ? 'active' : 'inactive',
+                'latepoint_status' => $latepoint_status,
+            ];
+        }
+
+        return $tutors;
+    }
+
+    /**
+     * Display recent activity
+     */
+    private function display_recent_activity() {
+        // This would ideally come from a custom table or meta queries
+        // For now, we'll show recent users with tutor account type
+        $recent_users = get_users([
+            'meta_key' => '_darsna_account_type',
+            'meta_value' => 'tutor',
+            'orderby' => 'registered',
+            'order' => 'DESC',
+            'number' => 5,
+        ]);
+
+        if ( empty( $recent_users ) ) {
+            echo '<p>' . __( 'No recent activity found.', 'darsna-tutor-registration' ) . '</p>';
+            return;
+        }
+
+        echo '<table class="darsna-table">';
+        echo '<thead><tr>';
+        echo '<th>' . __( 'User', 'darsna-tutor-registration' ) . '</th>';
+        echo '<th>' . __( 'Email', 'darsna-tutor-registration' ) . '</th>';
+        echo '<th>' . __( 'Registered', 'darsna-tutor-registration' ) . '</th>';
+        echo '<th>' . __( 'Status', 'darsna-tutor-registration' ) . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ( $recent_users as $user ) {
+            $subscription_active = get_user_meta( $user->ID, '_darsna_subscription_active', true );
+            $status_class = $subscription_active === 'yes' ? 'active' : 'inactive';
+            
+            echo '<tr>';
+            echo '<td>' . esc_html( $user->display_name ?: ( $user->first_name . ' ' . $user->last_name ) ) . '</td>';
+            echo '<td>' . esc_html( $user->user_email ) . '</td>';
+            echo '<td>' . esc_html( date( 'Y-m-d H:i', strtotime( $user->user_registered ) ) ) . '</td>';
+            echo '<td><span class="status-' . esc_attr( $status_class ) . '">' . esc_html( ucfirst( $status_class ) ) . '</span></td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+
+    /**
+     * Display system information
+     */
+    private function display_system_info() {
+        echo "WordPress Version: " . get_bloginfo( 'version' ) . "\n";
+        echo "PHP Version: " . PHP_VERSION . "\n";
+        echo "Plugin Version: " . DARSNA_TUTOR_REG_VERSION . "\n";
+        echo "WooCommerce Version: " . ( defined( 'WC_VERSION' ) ? WC_VERSION : 'Not installed' ) . "\n";
+        echo "WP Debug: " . ( WP_DEBUG ? 'Enabled' : 'Disabled' ) . "\n";
+        echo "WP Debug Log: " . ( WP_DEBUG_LOG ? 'Enabled' : 'Disabled' ) . "\n";
+        echo "Memory Limit: " . ini_get( 'memory_limit' ) . "\n";
+        echo "Max Execution Time: " . ini_get( 'max_execution_time' ) . "s\n";
+        
+        if ( class_exists( '\OsAgentModel' ) ) {
+            try {
+                $agent_model = new \OsAgentModel();
+                $all_agents = $agent_model->get_results();
+                echo "Total LatePoint Agents: " . count( $all_agents ) . "\n";
+            } catch ( Exception $e ) {
+                echo "LatePoint Agent Error: " . $e->getMessage() . "\n";
+            }
+        } else {
+            echo "LatePoint Agents: Model not available\n";
+        }
+    }
+
+    /**
+     * Get debug information for a user
+     */
+    private function get_debug_info( $user_id ) {
+        $debug_info = [];
+        
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return "User {$user_id} not found";
+        }
+
+        $debug_info[] = "=== USER DEBUG INFO ===";
+        $debug_info[] = "User ID: {$user_id}";
+        $debug_info[] = "Email: {$user->user_email}";
+        $debug_info[] = "Display Name: {$user->display_name}";
+        $debug_info[] = "Roles: " . implode( ', ', $user->roles );
+        
+        // User meta
+        $account_type = get_user_meta( $user_id, '_darsna_account_type', true );
+        $subscription_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
+        $subscription_id = get_user_meta( $user_id, '_darsna_subscription_id', true );
+        
+        $debug_info[] = "";
+        $debug_info[] = "=== USER META ===";
+        $debug_info[] = "Account Type: " . ( $account_type ?: 'Not set' );
+        $debug_info[] = "Subscription Active: " . ( $subscription_active ?: 'Not set' );
+        $debug_info[] = "Subscription ID: " . ( $subscription_id ?: 'Not set' );
+
+        // Check subscriptions
+        if ( function_exists( 'wcs_get_users_subscriptions' ) ) {
+            $subscriptions = wcs_get_users_subscriptions( $user_id );
+            $debug_info[] = "";
+            $debug_info[] = "=== SUBSCRIPTIONS ===";
+            $debug_info[] = "Total Subscriptions: " . count( $subscriptions );
+            
+            foreach ( $subscriptions as $subscription ) {
+                $debug_info[] = "Sub #{$subscription->get_id()}: {$subscription->get_status()}";
+            }
+        }
+
+        // Check LatePoint agent
+        if ( class_exists( '\OsAgentModel' ) ) {
+            $agent_model = new \OsAgentModel();
+            $agents = $agent_model->where([ 'wp_user_id' => $user_id ])->get_results();
+            
+            $debug_info[] = "";
+            $debug_info[] = "=== LATEPOINT AGENTS ===";
+            $debug_info[] = "Total Agents Found: " . count( $agents );
+            
+            if ( $agents ) {
+                foreach ( $agents as $agent ) {
+                    $agent_data = (array) $agent;
+                    $debug_info[] = "Agent ID: {$agent_data['id']}";
+                    $debug_info[] = "Status: {$agent_data['status']}";
+                    $debug_info[] = "Email: {$agent_data['email']}";
+                    $debug_info[] = "Name: {$agent_data['first_name']} {$agent_data['last_name']}";
+                    $debug_info[] = "Phone: {$agent_data['phone']}";
+                }
+            } else {
+                $debug_info[] = "No LatePoint agents found for this user";
+            }
+        } else {
+            $debug_info[] = "LatePoint Agent Model not available";
+        }
+
+        return implode( "\n", $debug_info );
+    }
+
+    /**
+     * Display logs
+     */
+    private function display_logs() {
+        $log_file = WP_CONTENT_DIR . '/debug.log';
+        
+        if ( ! file_exists( $log_file ) ) {
+            echo '<p>No log file found. Make sure WP_DEBUG_LOG is enabled.</p>';
+            return;
+        }
+
+        $logs = file_get_contents( $log_file );
+        $log_lines = explode( "\n", $logs );
+        
+        // Filter for our plugin logs and get last 50
+        $plugin_logs = [];
+        foreach ( array_reverse( $log_lines ) as $line ) {
+            if ( strpos( $line, '[DarsnaTutorCheckout]' ) !== false ) {
+                $plugin_logs[] = $line;
+                if ( count( $plugin_logs ) >= 50 ) {
+                    break;
+                }
+            }
+        }
+
+        if ( empty( $plugin_logs ) ) {
+            echo '<p>No plugin logs found.</p>';
+            return;
+        }
+
+        foreach ( $plugin_logs as $log ) {
+            echo esc_html( $log ) . "\n";
+        }
     }
 
     /**
