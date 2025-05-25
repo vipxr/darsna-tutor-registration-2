@@ -339,7 +339,7 @@ class Darsna_Tutor_Checkout {
             error_log('Agent already exists for user ' . $user_id . ', updating status');
             $agent_model->update_where(
                 array('wp_user_id' => $user_id),
-                array('status' => LATEPOINT_AGENT_STATUS_APPROVED)
+                array('status' => 'active') // Using 'active' instead of LATEPOINT_AGENT_STATUS_APPROVED constant
             );
             return;
         }
@@ -380,7 +380,7 @@ class Darsna_Tutor_Checkout {
             'email' => $user->user_email,
             'phone' => $phone,
             'wp_user_id' => $user_id,
-            'status' => LATEPOINT_AGENT_STATUS_APPROVED,
+            'status' => 'active', // Using 'active' instead of LATEPOINT_AGENT_STATUS_APPROVED constant
         );
         
         error_log('Creating LatePoint agent with data: ' . print_r($agent_data, true));
