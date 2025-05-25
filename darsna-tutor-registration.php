@@ -240,11 +240,19 @@ class Darsna_Tutor_Checkout {
         if ( $parent_order && $parent_order->get_status() === 'completed' ) {
             // Check if user is already activated to prevent double activation
             $already_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
-            if ( $already_active !== 'yes' ) {
-                $this->activate_user_as_agent( $user_id, $subscription );
-            } else {
-                $this->log( "User {$user_id} already activated, skipping duplicate activation" );
+            $processing_key = '_darsna_processing_user_' . $user_id;
+            
+            if ( $already_active === 'yes' ) {
+                $this->log( "User {$user_id} already activated (meta check), skipping duplicate activation" );
+                return;
             }
+            
+            if ( get_transient( $processing_key ) ) {
+                $this->log( "User {$user_id} currently being processed (transient check), skipping duplicate activation" );
+                return;
+            }
+            
+            $this->activate_user_as_agent( $user_id, $subscription );
         } else {
             // Keep subscription on hold until manual approval
             $subscription->update_status( 'on-hold', 'Pending manual approval.' );
@@ -314,7 +322,7 @@ class Darsna_Tutor_Checkout {
 
             $this->log( "Activating user {$user_id} as tutor/agent" );
 
-            // Update user meta
+            // Update user meta FIRST to prevent race conditions
             update_user_meta( $user_id, '_darsna_account_type', 'tutor' );
             update_user_meta( $user_id, '_darsna_subscription_active', 'yes' );
             
@@ -334,13 +342,11 @@ class Darsna_Tutor_Checkout {
                 $this->log( "User {$user_id} activated but LatePoint sync failed" );
             }
 
-            // Clear processing flag
-            delete_transient( $processing_key );
-
         } catch ( Exception $e ) {
             $this->log( "Error activating user as agent: " . $e->getMessage() );
-            // Always clear processing flag on error
-            delete_transient( '_darsna_processing_user_' . $user_id );
+        } finally {
+            // Always clear processing flag
+            delete_transient( $processing_key );
         }
     }
 
@@ -473,6 +479,32 @@ class Darsna_Tutor_Checkout {
                         }
                     }
                     
+                    // Try to investigate why save() fails
+                    $this->log( "Investigating LatePoint save failure..." );
+                    
+                    // Check if there are any validation methods
+                    if ( method_exists( $new_agent, 'validate' ) ) {
+                        $validation_result = $new_agent->validate();
+                        $this->log( "LatePoint validation result: " . json_encode( $validation_result ) );
+                    }
+                    
+                    // Check if there are any errors property
+                    if ( property_exists( $new_agent, 'errors' ) && ! empty( $new_agent->errors ) ) {
+                        $this->log( "LatePoint model errors: " . json_encode( $new_agent->errors ) );
+                    }
+                    
+                    // Try to get validation errors if they exist
+                    if ( method_exists( $new_agent, 'get_errors' ) ) {
+                        $errors = $new_agent->get_errors();
+                        $this->log( "LatePoint get_errors result: " . json_encode( $errors ) );
+                    }
+                    
+                    // Check the model's data before save
+                    if ( method_exists( $new_agent, 'get_data' ) ) {
+                        $model_data = $new_agent->get_data();
+                        $this->log( "LatePoint model data before save: " . json_encode( $model_data ) );
+                    }
+                    
                     // Enable error reporting temporarily
                     $old_error_reporting = error_reporting( E_ALL );
                     $old_display_errors = ini_get( 'display_errors' );
@@ -489,6 +521,14 @@ class Darsna_Tutor_Checkout {
                     
                     if ( $save_output ) {
                         $this->log( "Save output/errors: " . $save_output );
+                    }
+                    
+                    // Check model state after save attempt
+                    if ( method_exists( $new_agent, 'get_errors' ) ) {
+                        $post_save_errors = $new_agent->get_errors();
+                        if ( ! empty( $post_save_errors ) ) {
+                            $this->log( "Post-save errors: " . json_encode( $post_save_errors ) );
+                        }
                     }
                     
                     if ( $save_result ) {
@@ -607,7 +647,7 @@ class Darsna_Tutor_Checkout {
         try {
             $table_name = $wpdb->prefix . 'latepoint_agents';
             
-            // Prepare data for insertion
+            // Prepare data for insertion with correct column names
             $insert_data = [
                 'first_name' => $agent_data['first_name'] ?? '',
                 'last_name' => $agent_data['last_name'] ?? '',
@@ -616,8 +656,8 @@ class Darsna_Tutor_Checkout {
                 'phone' => $agent_data['phone'] ?? '',
                 'wp_user_id' => $agent_data['wp_user_id'] ?? 0,
                 'status' => $agent_data['status'] ?? 'active',
-                'created_date' => current_time( 'mysql' ),
-                'updated_date' => current_time( 'mysql' ),
+                'created_at' => current_time( 'mysql' ),  // Fixed column name
+                'updated_at' => current_time( 'mysql' ),  // Fixed column name
             ];
             
             $this->log( "Direct insert data: " . json_encode( $insert_data ) );
