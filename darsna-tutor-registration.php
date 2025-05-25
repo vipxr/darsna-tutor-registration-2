@@ -8,8 +8,6 @@
 
 if (!defined('ABSPATH')) exit;
 
-use OsAgentModel;
-
 define('DARSNA_TUTOR_REG_VERSION', '3.1.0');
 define('DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path(__FILE__));
 
@@ -202,7 +200,7 @@ class Darsna_Tutor_Checkout {
     }
     
     private function create_latepoint_agent($user_id) {
-        if (!class_exists('OsAgentModel')) {
+        if (!class_exists('\OsAgentModel')) {
             error_log('[DarsnaTutorCheckout] OsAgentModel class not found');
             return;
         }
@@ -213,7 +211,7 @@ class Darsna_Tutor_Checkout {
             return;
         }
         
-        $agent_model = new OsAgentModel();
+        $agent_model = new \OsAgentModel();
         $existing = $agent_model->where(array('wp_user_id' => $user_id))->get_results();
         
         if (!empty($existing)) {
@@ -283,9 +281,9 @@ class Darsna_Tutor_Checkout {
     }
     
     private function remove_latepoint_agent($user_id) {
-        if (!class_exists('OsAgentModel')) return;
+        if (!class_exists('\OsAgentModel')) return;
         
-        $agent_model = new OsAgentModel();
+        $agent_model = new \OsAgentModel();
         $existing = $agent_model->where(array('wp_user_id' => $user_id))->get_results();
         
         if (!empty($existing)) {
