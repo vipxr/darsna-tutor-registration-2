@@ -97,6 +97,11 @@ class Darsna_Tutor_Checkout {
         
         // Admin hooks
         add_action( 'admin_init', [ $this, 'maybe_show_admin_notices' ] );
+        add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_scripts' ] );
+        add_action( 'wp_ajax_darsna_sync_agent', [ $this, 'ajax_sync_agent' ] );
+        add_action( 'wp_ajax_darsna_debug_user', [ $this, 'ajax_debug_user' ] );
+        add_action( 'wp_ajax_darsna_get_logs', [ $this, 'ajax_get_logs' ] );
     }
 
     /**
@@ -224,7 +229,13 @@ class Darsna_Tutor_Checkout {
         
         // Only activate if parent order is completed (manual approval)
         if ( $parent_order && $parent_order->get_status() === 'completed' ) {
-            $this->activate_user_as_agent( $user_id, $subscription );
+            // Check if user is already activated to prevent double activation
+            $already_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
+            if ( $already_active !== 'yes' ) {
+                $this->activate_user_as_agent( $user_id, $subscription );
+            } else {
+                $this->log( "User {$user_id} already activated, skipping duplicate activation" );
+            }
         } else {
             // Keep subscription on hold until manual approval
             $subscription->update_status( 'on-hold', 'Pending manual approval.' );
@@ -250,13 +261,28 @@ class Darsna_Tutor_Checkout {
             return;
         }
 
-        // Activate subscription if not already active
-        if ( $subscription->get_status() !== 'active' ) {
-            $subscription->update_status( 'active', 'Activated after manual order completion.' );
+        // Check if already processing this user to prevent double activation
+        $processing_key = '_darsna_processing_activation_' . $user_id;
+        if ( get_transient( $processing_key ) ) {
+            $this->log( "User {$user_id} activation already in progress, skipping duplicate" );
+            return;
         }
 
-        // Activate user as agent
-        $this->activate_user_as_agent( $user_id, $subscription );
+        // Set processing flag for 30 seconds
+        set_transient( $processing_key, true, 30 );
+
+        try {
+            // Activate subscription if not already active
+            if ( $subscription->get_status() !== 'active' ) {
+                $subscription->update_status( 'active', 'Activated after manual order completion.' );
+            }
+
+            // Activate user as agent
+            $this->activate_user_as_agent( $user_id, $subscription );
+        } finally {
+            // Always clear the processing flag
+            delete_transient( $processing_key );
+        }
     }
 
     /**
@@ -337,33 +363,69 @@ class Darsna_Tutor_Checkout {
             }
 
             $agent_model = new \OsAgentModel();
-            $existing_agent = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
+            $existing_agents = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
 
-            if ( $existing_agent ) {
+            $this->log( "Syncing LatePoint agent for user {$user_id} with status: {$status}" );
+            $this->log( "Found " . count( $existing_agents ) . " existing agent(s) for user {$user_id}" );
+
+            if ( $existing_agents ) {
                 // Update existing agent
-                $agent_model->update_where( 
+                $update_result = $agent_model->update_where( 
                     [ 'wp_user_id' => $user_id ], 
                     [ 'status' => $status ] 
                 );
-                $this->log( "Updated existing LatePoint agent for user {$user_id} - status: {$status}" );
+                
+                $this->log( "Updated existing LatePoint agent for user {$user_id} - status: {$status}, result: " . ( $update_result ? 'success' : 'failed' ) );
+                
+                // Get updated agent to verify
+                $updated_agent = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
+                if ( $updated_agent ) {
+                    $agent_data = (array) $updated_agent[0];
+                    $this->log( "Agent verification - ID: {$agent_data['id']}, Status: {$agent_data['status']}, Email: {$agent_data['email']}" );
+                }
+                
+                return $update_result;
             } else {
-                // Create new agent
+                // Create new agent only if activating
                 if ( $status === 'active' ) {
                     $agent_data = $this->prepare_agent_data( $user );
                     
+                    $this->log( "Creating new LatePoint agent with data: " . json_encode( $agent_data ) );
+                    
+                    // Clear any existing data and set new data
+                    $new_agent = new \OsAgentModel();
                     foreach ( $agent_data as $key => $value ) {
-                        $agent_model->set_data( $key, $value );
+                        $new_agent->set_data( $key, $value );
                     }
                     
-                    $agent_model->save();
-                    $this->log( "Created new LatePoint agent for user {$user_id}" );
+                    $save_result = $new_agent->save();
+                    
+                    if ( $save_result ) {
+                        $agent_id = $new_agent->id;
+                        $this->log( "Successfully created LatePoint agent ID: {$agent_id} for user {$user_id}" );
+                        
+                        // Verify creation
+                        $verify_agent = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
+                        if ( $verify_agent ) {
+                            $this->log( "Agent creation verified - found agent in database" );
+                        } else {
+                            $this->log( "ERROR: Agent creation failed - not found in database after save" );
+                        }
+                    } else {
+                        $this->log( "ERROR: Failed to save new LatePoint agent for user {$user_id}" );
+                    }
+                    
+                    return $save_result;
+                } else {
+                    $this->log( "No existing agent found for user {$user_id} and status is {$status} - nothing to do" );
                 }
             }
 
             return true;
 
         } catch ( Exception $e ) {
-            $this->log( "Error syncing LatePoint agent: " . $e->getMessage() );
+            $this->log( "ERROR syncing LatePoint agent: " . $e->getMessage() );
+            $this->log( "Stack trace: " . $e->getTraceAsString() );
             return false;
         }
     }
@@ -665,12 +727,470 @@ class Darsna_Tutor_Checkout {
     }
 
     /**
-     * Log messages for debugging
+     * Add admin menu
      */
-    private function log( $message ) {
-        if ( WP_DEBUG && WP_DEBUG_LOG ) {
-            error_log( '[DarsnaTutorCheckout] ' . $message );
+    public function add_admin_menu() {
+        add_menu_page(
+            __( 'Tutor Registration', 'darsna-tutor-registration' ),
+            __( 'Tutor Registration', 'darsna-tutor-registration' ),
+            'manage_options',
+            'darsna-tutor-registration',
+            [ $this, 'admin_dashboard_page' ],
+            'dashicons-welcome-learn-more',
+            30
+        );
+
+        add_submenu_page(
+            'darsna-tutor-registration',
+            __( 'Dashboard', 'darsna-tutor-registration' ),
+            __( 'Dashboard', 'darsna-tutor-registration' ),
+            'manage_options',
+            'darsna-tutor-registration',
+            [ $this, 'admin_dashboard_page' ]
+        );
+
+        add_submenu_page(
+            'darsna-tutor-registration',
+            __( 'Tutors & Agents', 'darsna-tutor-registration' ),
+            __( 'Tutors & Agents', 'darsna-tutor-registration' ),
+            'manage_options',
+            'darsna-tutor-agents',
+            [ $this, 'admin_agents_page' ]
+        );
+
+        add_submenu_page(
+            'darsna-tutor-registration',
+            __( 'Debug Tools', 'darsna-tutor-registration' ),
+            __( 'Debug Tools', 'darsna-tutor-registration' ),
+            'manage_options',
+            'darsna-tutor-debug',
+            [ $this, 'admin_debug_page' ]
+        );
+
+        add_submenu_page(
+            'darsna-tutor-registration',
+            __( 'Logs', 'darsna-tutor-registration' ),
+            __( 'Logs', 'darsna-tutor-registration' ),
+            'manage_options',
+            'darsna-tutor-logs',
+            [ $this, 'admin_logs_page' ]
+        );
+    }
+
+    /**
+     * Enqueue admin scripts
+     */
+    public function enqueue_admin_scripts( $hook ) {
+        if ( strpos( $hook, 'darsna-tutor' ) === false ) {
+            return;
         }
+
+        wp_enqueue_script( 'jquery' );
+        wp_add_inline_script( 'jquery', $this->get_admin_script() );
+        wp_add_inline_style( 'common', $this->get_admin_styles() );
+    }
+
+    /**
+     * Get admin JavaScript
+     */
+    private function get_admin_script() {
+        return "
+            jQuery(document).ready(function($) {
+                // Sync agent button
+                $('.sync-agent-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var userId = $(this).data('user-id');
+                    var button = $(this);
+                    
+                    button.prop('disabled', true).text('Syncing...');
+                    
+                    $.post(ajaxurl, {
+                        action: 'darsna_sync_agent',
+                        user_id: userId,
+                        nonce: '" . wp_create_nonce( 'darsna_admin_nonce' ) . "'
+                    }, function(response) {
+                        if (response.success) {
+                            button.text('Success!').removeClass('button-primary').addClass('button-secondary');
+                            setTimeout(function() {
+                                location.reload();
+                            }, 1000);
+                        } else {
+                            button.text('Error!').removeClass('button-primary').addClass('button-danger');
+                            alert('Error: ' + response.data);
+                        }
+                    }).fail(function() {
+                        button.text('Failed!').removeClass('button-primary').addClass('button-danger');
+                    });
+                });
+
+                // Debug user button
+                $('.debug-user-btn').on('click', function(e) {
+                    e.preventDefault();
+                    var userId = $(this).data('user-id');
+                    var button = $(this);
+                    
+                    button.prop('disabled', true).text('Debugging...');
+                    
+                    $.post(ajaxurl, {
+                        action: 'darsna_debug_user',
+                        user_id: userId,
+                        nonce: '" . wp_create_nonce( 'darsna_admin_nonce' ) . "'
+                    }, function(response) {
+                        button.prop('disabled', false).text('Debug User');
+                        if (response.success) {
+                            $('#debug-output').html('<pre>' + response.data + '</pre>');
+                        } else {
+                            $('#debug-output').html('<p style=\"color: red;\">Error: ' + response.data + '</p>');
+                        }
+                    });
+                });
+
+                // Auto-refresh logs
+                function refreshLogs() {
+                    if ($('#logs-container').length) {
+                        $.post(ajaxurl, {
+                            action: 'darsna_get_logs',
+                            nonce: '" . wp_create_nonce( 'darsna_admin_nonce' ) . "'
+                        }, function(response) {
+                            if (response.success) {
+                                $('#logs-container').html(response.data);
+                            }
+                        });
+                    }
+                }
+
+                // Refresh logs every 10 seconds
+                if ($('#logs-container').length) {
+                    setInterval(refreshLogs, 10000);
+                }
+            });
+        ";
+    }
+
+    /**
+     * Get admin CSS
+     */
+    private function get_admin_styles() {
+        return "
+            .darsna-admin-wrap {
+                margin: 20px 0;
+            }
+            .darsna-card {
+                background: #fff;
+                border: 1px solid #ccd0d4;
+                box-shadow: 0 1px 1px rgba(0,0,0,.04);
+                margin: 20px 0;
+                padding: 20px;
+            }
+            .darsna-stats {
+                display: flex;
+                gap: 20px;
+                margin: 20px 0;
+            }
+            .darsna-stat-box {
+                background: #fff;
+                border: 1px solid #ccd0d4;
+                border-radius: 4px;
+                padding: 20px;
+                text-align: center;
+                flex: 1;
+            }
+            .darsna-stat-number {
+                font-size: 32px;
+                font-weight: bold;
+                color: #0073aa;
+                display: block;
+            }
+            .darsna-stat-label {
+                color: #666;
+                font-size: 14px;
+            }
+            .darsna-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 20px 0;
+            }
+            .darsna-table th,
+            .darsna-table td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+            }
+            .darsna-table th {
+                background: #f9f9f9;
+                font-weight: 600;
+            }
+            .status-active { color: #00a32a; font-weight: 600; }
+            .status-inactive { color: #d63638; font-weight: 600; }
+            .status-pending { color: #dba617; font-weight: 600; }
+            #debug-output {
+                background: #f1f1f1;
+                border: 1px solid #ddd;
+                padding: 15px;
+                margin: 15px 0;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 12px;
+                max-height: 400px;
+                overflow-y: auto;
+            }
+            #logs-container {
+                background: #f1f1f1;
+                border: 1px solid #ddd;
+                padding: 15px;
+                border-radius: 4px;
+                font-family: monospace;
+                font-size: 12px;
+                max-height: 600px;
+                overflow-y: auto;
+            }
+            .button-danger {
+                background: #d63638 !important;
+                border-color: #d63638 !important;
+                color: #fff !important;
+            }
+        ";
+    }
+
+    /**
+     * Admin dashboard page
+     */
+    public function admin_dashboard_page() {
+        $stats = $this->get_dashboard_stats();
+        ?>
+        <div class="wrap">
+            <h1><?php _e( 'Tutor Registration Dashboard', 'darsna-tutor-registration' ); ?></h1>
+            
+            <div class="darsna-admin-wrap">
+                <div class="darsna-stats">
+                    <div class="darsna-stat-box">
+                        <span class="darsna-stat-number"><?php echo esc_html( $stats['total_tutors'] ); ?></span>
+                        <span class="darsna-stat-label"><?php _e( 'Total Tutors', 'darsna-tutor-registration' ); ?></span>
+                    </div>
+                    <div class="darsna-stat-box">
+                        <span class="darsna-stat-number"><?php echo esc_html( $stats['active_subscriptions'] ); ?></span>
+                        <span class="darsna-stat-label"><?php _e( 'Active Subscriptions', 'darsna-tutor-registration' ); ?></span>
+                    </div>
+                    <div class="darsna-stat-box">
+                        <span class="darsna-stat-number"><?php echo esc_html( $stats['latepoint_agents'] ); ?></span>
+                        <span class="darsna-stat-label"><?php _e( 'LatePoint Agents', 'darsna-tutor-registration' ); ?></span>
+                    </div>
+                    <div class="darsna-stat-box">
+                        <span class="darsna-stat-number"><?php echo esc_html( $stats['pending_orders'] ); ?></span>
+                        <span class="darsna-stat-label"><?php _e( 'Pending Orders', 'darsna-tutor-registration' ); ?></span>
+                    </div>
+                </div>
+
+                <div class="darsna-card">
+                    <h2><?php _e( 'System Status', 'darsna-tutor-registration' ); ?></h2>
+                    <table class="darsna-table">
+                        <tr>
+                            <td><strong><?php _e( 'Plugin Version', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo esc_html( DARSNA_TUTOR_REG_VERSION ); ?></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e( 'WooCommerce', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo is_plugin_active( 'woocommerce/woocommerce.php' ) ? '<span class="status-active">✓ Active</span>' : '<span class="status-inactive">✗ Inactive</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e( 'WooCommerce Subscriptions', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo is_plugin_active( 'woocommerce-subscriptions/woocommerce-subscriptions.php' ) ? '<span class="status-active">✓ Active</span>' : '<span class="status-inactive">✗ Inactive</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e( 'LatePoint', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo is_plugin_active( 'latepoint/latepoint.php' ) ? '<span class="status-active">✓ Active</span>' : '<span class="status-inactive">✗ Inactive</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e( 'LatePoint Agent Model', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo class_exists( '\OsAgentModel' ) ? '<span class="status-active">✓ Available</span>' : '<span class="status-inactive">✗ Not Available</span>'; ?></td>
+                        </tr>
+                        <tr>
+                            <td><strong><?php _e( 'Debug Logging', 'darsna-tutor-registration' ); ?></strong></td>
+                            <td><?php echo ( WP_DEBUG && WP_DEBUG_LOG ) ? '<span class="status-active">✓ Enabled</span>' : '<span class="status-inactive">✗ Disabled</span>'; ?></td>
+                        </tr>
+                    </table>
+                </div>
+
+                <div class="darsna-card">
+                    <h2><?php _e( 'Recent Activity', 'darsna-tutor-registration' ); ?></h2>
+                    <p><?php _e( 'Last 5 tutor registrations and status changes:', 'darsna-tutor-registration' ); ?></p>
+                    <?php $this->display_recent_activity(); ?>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Admin agents page
+     */
+    public function admin_agents_page() {
+        $tutors = $this->get_tutors_data();
+        ?>
+        <div class="wrap">
+            <h1><?php _e( 'Tutors & Agents Management', 'darsna-tutor-registration' ); ?></h1>
+            
+            <div class="darsna-admin-wrap">
+                <div class="darsna-card">
+                    <h2><?php _e( 'All Tutors', 'darsna-tutor-registration' ); ?></h2>
+                    <table class="darsna-table">
+                        <thead>
+                            <tr>
+                                <th><?php _e( 'User ID', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'Name', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'Email', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'Role', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'Subscription', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'LatePoint Agent', 'darsna-tutor-registration' ); ?></th>
+                                <th><?php _e( 'Actions', 'darsna-tutor-registration' ); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ( $tutors as $tutor ) : ?>
+                            <tr>
+                                <td><?php echo esc_html( $tutor['user_id'] ); ?></td>
+                                <td><?php echo esc_html( $tutor['name'] ); ?></td>
+                                <td><?php echo esc_html( $tutor['email'] ); ?></td>
+                                <td><?php echo esc_html( implode( ', ', $tutor['roles'] ) ); ?></td>
+                                <td>
+                                    <span class="status-<?php echo esc_attr( $tutor['subscription_status'] ); ?>">
+                                        <?php echo esc_html( ucfirst( $tutor['subscription_status'] ) ); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="status-<?php echo esc_attr( $tutor['latepoint_status'] ); ?>">
+                                        <?php echo esc_html( ucfirst( $tutor['latepoint_status'] ) ); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="button button-small sync-agent-btn" data-user-id="<?php echo esc_attr( $tutor['user_id'] ); ?>">
+                                        <?php _e( 'Sync Agent', 'darsna-tutor-registration' ); ?>
+                                    </button>
+                                    <button class="button button-small debug-user-btn" data-user-id="<?php echo esc_attr( $tutor['user_id'] ); ?>">
+                                        <?php _e( 'Debug', 'darsna-tutor-registration' ); ?>
+                                    </button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Admin debug page
+     */
+    public function admin_debug_page() {
+        ?>
+        <div class="wrap">
+            <h1><?php _e( 'Debug Tools', 'darsna-tutor-registration' ); ?></h1>
+            
+            <div class="darsna-admin-wrap">
+                <div class="darsna-card">
+                    <h2><?php _e( 'Debug User', 'darsna-tutor-registration' ); ?></h2>
+                    <p><?php _e( 'Enter a user ID to debug their tutor/agent status:', 'darsna-tutor-registration' ); ?></p>
+                    <input type="number" id="debug-user-id" placeholder="<?php _e( 'User ID', 'darsna-tutor-registration' ); ?>" style="width: 100px;">
+                    <button class="button button-primary debug-user-btn" data-user-id="" onclick="this.setAttribute('data-user-id', document.getElementById('debug-user-id').value)">
+                        <?php _e( 'Debug User', 'darsna-tutor-registration' ); ?>
+                    </button>
+                    
+                    <div id="debug-output" style="display: none;"></div>
+                </div>
+
+                <div class="darsna-card">
+                    <h2><?php _e( 'Manual Agent Sync', 'darsna-tutor-registration' ); ?></h2>
+                    <p><?php _e( 'Force sync a user with LatePoint:', 'darsna-tutor-registration' ); ?></p>
+                    <input type="number" id="sync-user-id" placeholder="<?php _e( 'User ID', 'darsna-tutor-registration' ); ?>" style="width: 100px;">
+                    <button class="button button-primary sync-agent-btn" data-user-id="" onclick="this.setAttribute('data-user-id', document.getElementById('sync-user-id').value)">
+                        <?php _e( 'Sync Agent', 'darsna-tutor-registration' ); ?>
+                    </button>
+                </div>
+
+                <div class="darsna-card">
+                    <h2><?php _e( 'System Information', 'darsna-tutor-registration' ); ?></h2>
+                    <pre style="background: #f1f1f1; padding: 15px; border-radius: 4px; font-size: 12px;">
+                        <?php $this->display_system_info(); ?>
+                    </pre>
+                </div>
+            </div>
+        </div>
+        <script>
+            // Show debug output when user enters a user ID and clicks debug
+            jQuery(document).ready(function($) {
+                $('.debug-user-btn').on('click', function() {
+                    $('#debug-output').show();
+                });
+            });
+        </script>
+        <?php
+    }
+
+    /**
+     * Admin logs page
+     */
+    public function admin_logs_page() {
+        ?>
+        <div class="wrap">
+            <h1><?php _e( 'Plugin Logs', 'darsna-tutor-registration' ); ?></h1>
+            
+            <div class="darsna-admin-wrap">
+                <div class="darsna-card">
+                    <h2><?php _e( 'Recent Logs', 'darsna-tutor-registration' ); ?></h2>
+                    <p><?php _e( 'Auto-refreshes every 10 seconds. Showing last 50 log entries:', 'darsna-tutor-registration' ); ?></p>
+                    <div id="logs-container">
+                        <?php $this->display_logs(); ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Debug method to check LatePoint agent status
+     * Can be called manually for troubleshooting
+     */
+    public function debug_latepoint_agent( $user_id ) {
+        if ( ! class_exists( '\OsAgentModel' ) ) {
+            $this->log( 'DEBUG: OsAgentModel class not found' );
+            return;
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            $this->log( "DEBUG: User {$user_id} not found" );
+            return;
+        }
+
+        $this->log( "DEBUG: Checking LatePoint agent for user {$user_id} ({$user->user_email})" );
+        
+        // Check user roles
+        $this->log( "DEBUG: User roles: " . implode( ', ', $user->roles ) );
+        
+        // Check user meta
+        $account_type = get_user_meta( $user_id, '_darsna_account_type', true );
+        $subscription_active = get_user_meta( $user_id, '_darsna_subscription_active', true );
+        $this->log( "DEBUG: Account type: {$account_type}, Subscription active: {$subscription_active}" );
+
+        // Check LatePoint agent
+        $agent_model = new \OsAgentModel();
+        $agents = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
+        
+        $this->log( "DEBUG: Found " . count( $agents ) . " LatePoint agent(s)" );
+        
+        if ( $agents ) {
+            foreach ( $agents as $agent ) {
+                $agent_data = (array) $agent;
+                $this->log( "DEBUG: Agent ID: {$agent_data['id']}, Status: {$agent_data['status']}, Email: {$agent_data['email']}, Name: {$agent_data['first_name']} {$agent_data['last_name']}" );
+            }
+        }
+
+        // Check all agents in LatePoint (for comparison)
+        $all_agents = $agent_model->get_results();
+        $this->log( "DEBUG: Total agents in LatePoint: " . count( $all_agents ) );
     }
 }
 
@@ -678,6 +1198,14 @@ class Darsna_Tutor_Checkout {
 add_action( 'plugins_loaded', function() {
     Darsna_Tutor_Checkout::get_instance();
 } );
+
+// Debug function - call this in functions.php if needed: darsna_debug_agent(71);
+function darsna_debug_agent( $user_id ) {
+    if ( class_exists( 'Darsna_Tutor_Checkout' ) ) {
+        $instance = Darsna_Tutor_Checkout::get_instance();
+        $instance->debug_latepoint_agent( $user_id );
+    }
+}
 
 // Activation hook
 register_activation_hook( __FILE__, function() {
