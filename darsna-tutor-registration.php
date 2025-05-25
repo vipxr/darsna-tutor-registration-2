@@ -70,6 +70,7 @@ final class Darsna_Tutor_Checkout {
         add_action( 'set_user_role', [ $this, 'handle_role_change' ], 10, 3 );
         
         add_filter( 'wp_nav_menu_items', [ $this, 'user_menu' ], 99, 2 );
+        add_action( 'darsna_assign_service', [ $this, 'delayed_service_assignment' ], 10, 2 );
     }
 
     public function checkout_assets() {
@@ -276,7 +277,7 @@ final class Darsna_Tutor_Checkout {
         wp_update_user( ['ID' => $user_id, 'role' => 'latepoint_agent'] );
         
         if ( $this->sync_agent( $user_id, 'active' ) && $tutor_data ) {
-            $this->assign_service( $user_id, $tutor_data['service_id'] );
+            wp_schedule_single_event( time() + 5, 'darsna_assign_service', [ $user_id, $tutor_data['service_id'] ] );
         }
         
         delete_transient( $key );
@@ -417,24 +418,33 @@ final class Darsna_Tutor_Checkout {
         ] : null;
     }
 
+    public function delayed_service_assignment( $user_id, $service_id ) {
+        $this->assign_service( $user_id, $service_id );
+    }
+
     private function assign_service( $user_id, $service_id ) {
-        if ( ! class_exists( '\OsAgentModel' ) ) return false;
+        if ( ! class_exists( '\OsAgentModel' ) || ! $service_id ) return false;
 
         $model = new \OsAgentModel();
-        $agents = $model->where( ['wp_user_id' => $user_id] )->get_results();
+        $agents = $model->where( ['wp_user_id' => $user_id, 'status' => 'active'] )->get_results();
         if ( ! $agents ) return false;
 
         global $wpdb;
         $table = $wpdb->prefix . 'latepoint_agent_services';
+        
         $existing = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$table} WHERE agent_id = %d AND service_id = %d",
             $agents[0]->id, $service_id
         ) );
 
-        return $existing ?: $wpdb->insert( $table, [
-            'agent_id' => $agents[0]->id,
-            'service_id' => $service_id
-        ] ) !== false;
+        if ( $existing ) return true;
+
+        $result = $wpdb->insert( $table, [
+            'agent_id' => (int) $agents[0]->id,
+            'service_id' => (int) $service_id
+        ], ['%d', '%d'] );
+
+        return $result !== false;
     }
 
     public function handle_user_deletion( $user_id ) {
