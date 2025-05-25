@@ -25,7 +25,6 @@ class Darsna_Tutor_Checkout {
     
     public function __construct() {
         add_action('init', array($this, 'init'));
-        add_action('darsna_hold_subscription', array($this, 'handle_scheduled_hold'), 10, 1);
     }
     
     /**
@@ -45,6 +44,12 @@ class Darsna_Tutor_Checkout {
         
         // Activate subscription only when order is manually completed
         add_action('woocommerce_order_status_completed', array($this, 'handle_order_completed'), 10, 1);
+        
+        // Force COD orders to start as on-hold
+        add_filter('woocommerce_cod_process_payment_order_status', array($this, 'force_cod_orders_on_hold'), 10, 2);
+        
+        // Extra safeguard for COD subscriptions
+        add_action('woocommerce_subscription_payment_complete', array($this, 'check_cod_subscription_activation'), 5, 1);
         
         add_filter('wp_nav_menu_items', array($this, 'add_dashboard_logout_menu_links'), 99, 2);
     }
@@ -91,55 +96,39 @@ class Darsna_Tutor_Checkout {
         }
     }
     
-    public function hold_new_subscription($subscription) {
-        // Immediately put subscription on hold after payment
-        if ($subscription && is_a($subscription, 'WC_Subscription')) {
-            $parent_order = wc_get_order($subscription->get_parent_id());
-            
-            // Only hold if parent order is not completed
-            if ($parent_order && $parent_order->get_status() !== 'completed') {
-                // Add a small delay to ensure the subscription is fully created
-                wp_schedule_single_event(time() + 2, 'darsna_hold_subscription', array($subscription->get_id()));
+    /**
+     * Force all COD orders to start as on-hold instead of processing or completed.
+     *
+     * @since 3.1.0
+     * @param string $status The default order status.
+     * @param WC_Order $order The order object.
+     * @return string Modified order status.
+     */
+    public function force_cod_orders_on_hold($status, $order) {
+        if (WP_DEBUG) {
+            error_log(sprintf('[DarsnaTutorCheckout] Setting COD order %d status to on-hold', $order->get_id()));
+        }
+        return 'on-hold';
+    }
+
+    /**
+     * Extra safeguard to ensure COD subscriptions stay on-hold until manual review.
+     *
+     * @since 3.1.0
+     * @param WC_Subscription $subscription The subscription object.
+     * @return void
+     */
+    public function check_cod_subscription_activation($subscription) {
+        $parent = wc_get_order($subscription->get_parent_id());
+        if ($parent && $parent->get_payment_method() === 'cod') {
+            if (WP_DEBUG) {
+                error_log(sprintf('[DarsnaTutorCheckout] Enforcing on-hold status for COD subscription %d', $subscription->get_id()));
             }
+            $subscription->update_status('on-hold', 'Awaiting manual review for COD order.');
         }
     }
     
-    public function hold_subscription_after_checkout($order_id) {
-        $order = wc_get_order($order_id);
-        if (!$order) return;
-        
-        // Check if order contains subscriptions
-        if (function_exists('wcs_order_contains_subscription') && wcs_order_contains_subscription($order)) {
-            $subscriptions = wcs_get_subscriptions_for_order($order);
-            foreach ($subscriptions as $subscription) {
-                if ($subscription->get_status() === 'active') {
-                    $subscription->update_status('on-hold', 'Subscription on hold pending manual approval.');
-                    
-                    // Ensure user doesn't have agent role
-                    $user_id = $subscription->get_user_id();
-                    if ($user_id) {
-                        $user = new WP_User($user_id);
-                        if (in_array('latepoint_agent', $user->roles)) {
-                            $user->set_role('customer');
-                        }
-                    }
-                }
-            }
-            
-            // Add order note
-            $order->add_order_note('Tutor subscription created - pending manual approval. Complete this order to activate subscription and create LatePoint agent.');
-        }
-    }
-    
-    public function handle_scheduled_hold($subscription_id) {
-        $subscription = wcs_get_subscription($subscription_id);
-        if ($subscription && $subscription->get_status() === 'active') {
-            $parent_order = wc_get_order($subscription->get_parent_id());
-            if ($parent_order && $parent_order->get_status() !== 'completed') {
-                $subscription->update_status('on-hold', 'Subscription on hold pending manual approval.');
-            }
-        }
-    }
+
     
     public function handle_order_completed($order_id) {
         $order = wc_get_order($order_id);
