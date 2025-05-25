@@ -725,30 +725,6 @@ class Darsna_Tutor_Checkout {
                     });
                 }
 
-                // Add searchable functionality to service dropdown
-                var serviceSelect = $('#tutor_service');
-                if (serviceSelect.length) {
-                    // Add search input above select
-                    serviceSelect.before('<input type=\"text\" id=\"service-search\" placeholder=\"Search subjects...\" style=\"width: 100%; margin-bottom: 10px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;\">');
-                    
-                    var searchInput = $('#service-search');
-                    var originalOptions = serviceSelect.find('option');
-                    
-                    searchInput.on('input', function() {
-                        var searchTerm = $(this).val().toLowerCase();
-                        
-                        serviceSelect.find('option').remove();
-                        serviceSelect.append('<option value=\"\">Select a subject...</option>');
-                        
-                        originalOptions.each(function() {
-                            var option = $(this);
-                            if (option.val() === '' || option.text().toLowerCase().includes(searchTerm)) {
-                                serviceSelect.append(option.clone());
-                            }
-                        });
-                    });
-                }
-
                 // Character counter for bio
                 var bioTextarea = $('#tutor_bio');
                 if (bioTextarea.length) {
@@ -898,8 +874,15 @@ class Darsna_Tutor_Checkout {
         $services = $this->get_latepoint_services();
         $service_options = [ '' => __( 'Select a subject...', 'darsna-tutor-registration' ) ];
         
-        foreach ( $services as $service ) {
-            $service_options[ $service->id ] = $service->name;
+        if ( ! empty( $services ) ) {
+            foreach ( $services as $service ) {
+                $service_options[ $service->id ] = $service->name;
+            }
+            $this->log( 'Loaded ' . count( $services ) . ' services for checkout dropdown' );
+        } else {
+            $this->log( 'No services available for checkout dropdown' );
+            // Add a fallback option so users can see there's an issue
+            $service_options[''] = __( 'No subjects available - please contact support', 'darsna-tutor-registration' );
         }
         
         woocommerce_form_field( 'tutor_service', [
@@ -954,18 +937,32 @@ class Darsna_Tutor_Checkout {
         if ( empty( $_POST['tutor_service'] ) ) {
             wc_add_notice( __( 'Please select a subject to teach.', 'darsna-tutor-registration' ), 'error' );
         } else {
-            $selected_service = intval( $_POST['tutor_service'] );
+            $selected_service = sanitize_text_field( $_POST['tutor_service'] );
             $services = $this->get_latepoint_services();
             $valid_service = false;
             
-            foreach ( $services as $service ) {
-                if ( $service->id === $selected_service ) {
-                    $valid_service = true;
-                    break;
+            $this->log( "Validating selected service: {$selected_service}" );
+            $this->log( "Available services: " . count( $services ) );
+            
+            if ( ! empty( $services ) ) {
+                foreach ( $services as $service ) {
+                    $this->log( "Checking service ID: {$service->id} (type: " . gettype( $service->id ) . ")" );
+                    
+                    // Compare both as strings and integers to handle type mismatches
+                    if ( $service->id == $selected_service || strval( $service->id ) === strval( $selected_service ) ) {
+                        $valid_service = true;
+                        $this->log( "Valid service found: {$service->name}" );
+                        break;
+                    }
                 }
+            } else {
+                $this->log( "No services available from LatePoint" );
+                wc_add_notice( __( 'No subjects available. Please contact support.', 'darsna-tutor-registration' ), 'error' );
+                return;
             }
             
             if ( ! $valid_service ) {
+                $this->log( "Invalid service selected: {$selected_service}" );
                 wc_add_notice( __( 'Please select a valid subject.', 'darsna-tutor-registration' ), 'error' );
             }
         }
