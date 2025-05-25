@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name: Tutor Registration for WooCommerce & LatePoint - Checkout
- * Version: 3.2.0
+ * Version: 3.2.1
  * Description: Tutor-only checkout with manual order approval for LatePoint agents
  * Requires PHP: 7.4
  * Author: Darsna
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'DARSNA_TUTOR_REG_VERSION', '3.2.0' );
+define( 'DARSNA_TUTOR_REG_VERSION', '3.2.1' );
 define( 'DARSNA_TUTOR_REG_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DARSNA_TUTOR_REG_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -386,7 +386,7 @@ class Darsna_Tutor_Checkout {
     }
 
     /**
-     * Sync user data with LatePoint agent
+     * Sync user data with LatePoint agent - FIXED VERSION
      */
     private function sync_latepoint_agent( $user_id, $status = 'active' ) {
         if ( ! class_exists( '\OsAgentModel' ) ) {
@@ -408,20 +408,26 @@ class Darsna_Tutor_Checkout {
             $this->log( "Found " . count( $existing_agents ) . " existing agent(s) for user {$user_id}" );
 
             if ( $existing_agents ) {
-                // Update existing agent
-                $update_result = $agent_model->update_where( 
-                    [ 'wp_user_id' => $user_id ], 
-                    [ 'status' => $status ] 
-                );
+                // Update existing agent - FIXED: Use proper LatePoint methods
+                $existing_agent = $existing_agents[0];
+                $update_agent = new \OsAgentModel();
+                
+                // Load existing agent data
+                if ( method_exists( $update_agent, 'load_by_id' ) ) {
+                    $update_agent->load_by_id( $existing_agent->id );
+                } else {
+                    // Fallback: set the ID
+                    $update_agent->id = $existing_agent->id;
+                    foreach ( (array) $existing_agent as $key => $value ) {
+                        $update_agent->set_data( $key, $value );
+                    }
+                }
+                
+                // Update the status
+                $update_agent->set_data( 'status', $status );
+                $update_result = $update_agent->save();
                 
                 $this->log( "Updated existing LatePoint agent for user {$user_id} - status: {$status}, result: " . ( $update_result ? 'success' : 'failed' ) );
-                
-                // Get updated agent to verify
-                $updated_agent = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
-                if ( $updated_agent ) {
-                    $agent_data = (array) $updated_agent[0];
-                    $this->log( "Agent verification - ID: {$agent_data['id']}, Status: {$agent_data['status']}, Email: {$agent_data['email']}" );
-                }
                 
                 return $update_result;
             } else {
@@ -435,41 +441,44 @@ class Darsna_Tutor_Checkout {
                     $existing_by_email = $agent_model->where( [ 'email' => $agent_data['email'] ] )->get_results();
                     if ( $existing_by_email ) {
                         $this->log( "WARNING: Agent with email {$agent_data['email']} already exists - updating instead" );
-                        $update_result = $agent_model->update_where( 
-                            [ 'email' => $agent_data['email'] ], 
-                            array_merge( $agent_data, [ 'wp_user_id' => $user_id ] )
-                        );
+                        $existing_agent = $existing_by_email[0];
+                        $update_agent = new \OsAgentModel();
+                        
+                        if ( method_exists( $update_agent, 'load_by_id' ) ) {
+                            $update_agent->load_by_id( $existing_agent->id );
+                        } else {
+                            $update_agent->id = $existing_agent->id;
+                            foreach ( (array) $existing_agent as $key => $value ) {
+                                $update_agent->set_data( $key, $value );
+                            }
+                        }
+                        
+                        // Update with new data including wp_user_id
+                        foreach ( $agent_data as $key => $value ) {
+                            $update_agent->set_data( $key, $value );
+                        }
+                        
+                        $update_result = $update_agent->save();
                         $this->log( "Updated existing agent by email: " . ( $update_result ? 'success' : 'failed' ) );
                         return $update_result;
                     }
                     
-                    // Try to get LatePoint database connection details for debugging
+                    // Get debug info about LatePoint
                     global $wpdb;
-                    $this->log( "Database info - WordPress prefix: {$wpdb->prefix}" );
-                    
-                    // Check if LatePoint tables exist
                     $agents_table = $wpdb->prefix . 'latepoint_agents';
                     $table_exists = $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $agents_table ) );
                     $this->log( "LatePoint agents table ({$agents_table}) exists: " . ( $table_exists ? 'yes' : 'no' ) );
                     
                     if ( $table_exists ) {
-                        // Check table structure
                         $columns = $wpdb->get_results( "DESCRIBE {$agents_table}" );
                         $column_names = array_column( $columns, 'Field' );
                         $this->log( "Table columns: " . implode( ', ', $column_names ) );
-                        
-                        // Check for required fields
-                        $required_fields = [ 'first_name', 'last_name', 'email', 'wp_user_id' ];
-                        $missing_fields = array_diff( $required_fields, $column_names );
-                        if ( $missing_fields ) {
-                            $this->log( "ERROR: Missing required fields in LatePoint table: " . implode( ', ', $missing_fields ) );
-                        }
                     }
                     
-                    // Clear any existing data and set new data
+                    // Create new agent
                     $new_agent = new \OsAgentModel();
                     
-                    // Set data one by one and check for errors
+                    // Set data one by one
                     foreach ( $agent_data as $key => $value ) {
                         try {
                             $new_agent->set_data( $key, $value );
@@ -479,70 +488,12 @@ class Darsna_Tutor_Checkout {
                         }
                     }
                     
-                    // Try to investigate why save() fails
-                    $this->log( "Investigating LatePoint save failure..." );
-                    
-                    // Check if there are any validation methods
-                    if ( method_exists( $new_agent, 'validate' ) ) {
-                        $validation_result = $new_agent->validate();
-                        $this->log( "LatePoint validation result: " . json_encode( $validation_result ) );
-                    }
-                    
-                    // Check if there are any errors property
-                    if ( property_exists( $new_agent, 'errors' ) && ! empty( $new_agent->errors ) ) {
-                        $this->log( "LatePoint model errors: " . json_encode( $new_agent->errors ) );
-                    }
-                    
-                    // Try to get validation errors if they exist
-                    if ( method_exists( $new_agent, 'get_errors' ) ) {
-                        $errors = $new_agent->get_errors();
-                        $this->log( "LatePoint get_errors result: " . json_encode( $errors ) );
-                    }
-                    
-                    // Check the model's data before save
-                    if ( method_exists( $new_agent, 'get_data' ) ) {
-                        $model_data = $new_agent->get_data();
-                        $this->log( "LatePoint model data before save: " . json_encode( $model_data ) );
-                    }
-                    
-                    // Enable error reporting temporarily
-                    $old_error_reporting = error_reporting( E_ALL );
-                    $old_display_errors = ini_get( 'display_errors' );
-                    ini_set( 'display_errors', 1 );
-                    
-                    // Capture any PHP errors during save
-                    ob_start();
+                    // Attempt to save
                     $save_result = $new_agent->save();
-                    $save_output = ob_get_clean();
-                    
-                    // Restore error reporting
-                    error_reporting( $old_error_reporting );
-                    ini_set( 'display_errors', $old_display_errors );
-                    
-                    if ( $save_output ) {
-                        $this->log( "Save output/errors: " . $save_output );
-                    }
-                    
-                    // Check model state after save attempt
-                    if ( method_exists( $new_agent, 'get_errors' ) ) {
-                        $post_save_errors = $new_agent->get_errors();
-                        if ( ! empty( $post_save_errors ) ) {
-                            $this->log( "Post-save errors: " . json_encode( $post_save_errors ) );
-                        }
-                    }
                     
                     if ( $save_result ) {
                         $agent_id = $new_agent->id ?? 'unknown';
                         $this->log( "Successfully created LatePoint agent ID: {$agent_id} for user {$user_id}" );
-                        
-                        // Verify creation
-                        $verify_agent = $agent_model->where( [ 'wp_user_id' => $user_id ] )->get_results();
-                        if ( $verify_agent ) {
-                            $this->log( "Agent creation verified - found agent in database" );
-                        } else {
-                            $this->log( "ERROR: Agent creation failed - not found in database after save" );
-                        }
-                        
                         return true;
                     } else {
                         $this->log( "ERROR: Failed to save new LatePoint agent for user {$user_id}" );
@@ -568,7 +519,47 @@ class Darsna_Tutor_Checkout {
 
         } catch ( Exception $e ) {
             $this->log( "ERROR syncing LatePoint agent: " . $e->getMessage() );
-            $this->log( "Stack trace: " . $e->getTraceAsString() );
+            return false;
+        }
+    }
+
+    /**
+     * Direct database insertion fallback for LatePoint agents
+     */
+    private function direct_agent_insert( $agent_data ) {
+        global $wpdb;
+        
+        try {
+            $table_name = $wpdb->prefix . 'latepoint_agents';
+            
+            // Prepare data for insertion with correct column names
+            $insert_data = [
+                'first_name' => $agent_data['first_name'] ?? '',
+                'last_name' => $agent_data['last_name'] ?? '',
+                'display_name' => $agent_data['display_name'] ?? '',
+                'email' => $agent_data['email'] ?? '',
+                'phone' => $agent_data['phone'] ?? '',
+                'wp_user_id' => $agent_data['wp_user_id'] ?? 0,
+                'status' => $agent_data['status'] ?? 'active',
+                'created_at' => current_time( 'mysql' ),  // Fixed column name
+                'updated_at' => current_time( 'mysql' ),  // Fixed column name
+            ];
+            
+            $this->log( "Direct insert data: " . json_encode( $insert_data ) );
+            
+            $result = $wpdb->insert( $table_name, $insert_data );
+            
+            if ( $result === false ) {
+                $this->log( "Direct insert failed. MySQL error: " . $wpdb->last_error );
+                return false;
+            } else {
+                $insert_id = $wpdb->insert_id;
+                $this->log( "Direct insert successful. Agent ID: {$insert_id}" );
+                return true;
+            }
+            
+        } catch ( Exception $e ) {
+            $this->log( "Exception in direct_agent_insert: " . $e->getMessage() );
             return false;
         }
     }
@@ -636,47 +627,6 @@ class Darsna_Tutor_Checkout {
         // If no + at the beginning, add it
         $digits_only = preg_replace( '/\D/', '', $phone );
         return '+' . $digits_only;
-    }
-
-    /**
-     * Direct database insertion fallback for LatePoint agents
-     */
-    private function direct_agent_insert( $agent_data ) {
-        global $wpdb;
-        
-        try {
-            $table_name = $wpdb->prefix . 'latepoint_agents';
-            
-            // Prepare data for insertion with correct column names
-            $insert_data = [
-                'first_name' => $agent_data['first_name'] ?? '',
-                'last_name' => $agent_data['last_name'] ?? '',
-                'display_name' => $agent_data['display_name'] ?? '',
-                'email' => $agent_data['email'] ?? '',
-                'phone' => $agent_data['phone'] ?? '',
-                'wp_user_id' => $agent_data['wp_user_id'] ?? 0,
-                'status' => $agent_data['status'] ?? 'active',
-                'created_at' => current_time( 'mysql' ),  // Fixed column name
-                'updated_at' => current_time( 'mysql' ),  // Fixed column name
-            ];
-            
-            $this->log( "Direct insert data: " . json_encode( $insert_data ) );
-            
-            $result = $wpdb->insert( $table_name, $insert_data );
-            
-            if ( $result === false ) {
-                $this->log( "Direct insert failed. MySQL error: " . $wpdb->last_error );
-                return false;
-            } else {
-                $insert_id = $wpdb->insert_id;
-                $this->log( "Direct insert successful. Agent ID: {$insert_id}" );
-                return true;
-            }
-            
-        } catch ( Exception $e ) {
-            $this->log( "Exception in direct_agent_insert: " . $e->getMessage() );
-            return false;
-        }
     }
 
     /**
@@ -1182,7 +1132,7 @@ class Darsna_Tutor_Checkout {
                         </tr>
                         <tr>
                             <td><strong><?php _e( 'LatePoint', 'darsna-tutor-registration' ); ?></strong></td>
-                            <td><?php echo is_plugin_active( 'latepoint/latepoint.php' ) ? '<span class="status-active">✓ Active</span>' : '<span class="status-inactive">✗ Inactive</span>'; ?></td>
+                            <td><?php echo is_plugin_active( 'latepoint/latepoint.php' ) ? '<span class="status-active">✓ Active</span>' : '<span class="status-inactive">✗ Not Available</span>'; ?></td>
                         </tr>
                         <tr>
                             <td><strong><?php _e( 'LatePoint Agent Model', 'darsna-tutor-registration' ); ?></strong></td>
