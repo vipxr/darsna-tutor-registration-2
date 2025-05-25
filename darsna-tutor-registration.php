@@ -65,9 +65,9 @@ final class Darsna_Tutor_Checkout {
         add_action( 'woocommerce_order_status_completed', [ $this, 'handle_completion' ] );
         add_action( 'woocommerce_subscription_status_updated', [ $this, 'handle_status_change' ], 10, 3 );
         
-        add_action( 'delete_user', fn($id) => $this->sync_agent( $id, 'disabled' ) );
-        add_action( 'remove_user_role', fn($id, $role) => $role === 'latepoint_agent' && $this->sync_agent( $id, 'disabled' ) );
-        add_action( 'set_user_role', fn($id, $role, $old) => in_array( 'latepoint_agent', $old ) && $role !== 'latepoint_agent' && $this->sync_agent( $id, 'disabled' ) );
+        add_action( 'delete_user', [ $this, 'handle_user_deletion' ] );
+        add_action( 'remove_user_role', [ $this, 'handle_role_removal' ], 10, 2 );
+        add_action( 'set_user_role', [ $this, 'handle_role_change' ], 10, 3 );
         
         add_filter( 'wp_nav_menu_items', [ $this, 'user_menu' ], 99, 2 );
     }
@@ -99,7 +99,6 @@ final class Darsna_Tutor_Checkout {
             .tutor-row .form-row{flex:1}
             #tutor_service,#tutor_hourly_rate,#tutor_bio{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
             #tutor_bio{min-height:80px;resize:vertical}
-            .required::after{content:' *';color:#d63638}
         " );
     }
 
@@ -128,7 +127,7 @@ final class Darsna_Tutor_Checkout {
         woocommerce_form_field( 'tutor_service', [
             'type' => 'select',
             'class' => ['form-row-first'],
-            'label' => __( 'Subject', 'darsna' ) . ' <span class="required"></span>',
+            'label' => __( 'Subject', 'darsna' ),
             'required' => true,
             'options' => $service_options,
         ], $checkout->get_value( 'tutor_service' ) );
@@ -136,7 +135,7 @@ final class Darsna_Tutor_Checkout {
         woocommerce_form_field( 'tutor_hourly_rate', [
             'type' => 'select',
             'class' => ['form-row-last'],
-            'label' => __( 'Rate', 'darsna' ) . ' <span class="required"></span>',
+            'label' => __( 'Rate', 'darsna' ),
             'required' => true,
             'options' => $rate_options,
         ], $checkout->get_value( 'tutor_hourly_rate' ) );
@@ -146,7 +145,7 @@ final class Darsna_Tutor_Checkout {
         woocommerce_form_field( 'tutor_bio', [
             'type' => 'textarea',
             'class' => ['form-row-wide'],
-            'label' => __( 'Bio (Optional)', 'darsna' ),
+            'label' => __( 'Bio', 'darsna' ),
             'placeholder' => __( 'Teaching background and specialties...', 'darsna' ),
             'custom_attributes' => ['maxlength' => '500', 'rows' => '4'],
         ], $checkout->get_value( 'tutor_bio' ) );
@@ -436,6 +435,22 @@ final class Darsna_Tutor_Checkout {
             'agent_id' => $agents[0]->id,
             'service_id' => $service_id
         ] ) !== false;
+    }
+
+    public function handle_user_deletion( $user_id ) {
+        $this->sync_agent( $user_id, 'disabled' );
+    }
+
+    public function handle_role_removal( $user_id, $role ) {
+        if ( $role === 'latepoint_agent' ) {
+            $this->sync_agent( $user_id, 'disabled' );
+        }
+    }
+
+    public function handle_role_change( $user_id, $role, $old_roles ) {
+        if ( in_array( 'latepoint_agent', $old_roles ) && $role !== 'latepoint_agent' ) {
+            $this->sync_agent( $user_id, 'disabled' );
+        }
     }
 
     public function user_menu( $items, $args ) {
