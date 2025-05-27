@@ -71,6 +71,9 @@ final class Darsna_Tutor_Checkout {
         
         add_filter( 'wp_nav_menu_items', [ $this, 'user_menu' ], 99, 2 );
         add_action( 'darsna_assign_service', [ $this, 'delayed_service_assignment' ], 10, 2 );
+        
+        add_filter( 'latepoint_booking_data_for_pricing_calculation', [ $this, 'dynamic_agent_pricing' ], 10, 2 );
+        add_filter( 'latepoint_service_charge_amount', [ $this, 'agent_service_pricing' ], 10, 3 );
     }
 
     public function checkout_assets() {
@@ -461,6 +464,46 @@ final class Darsna_Tutor_Checkout {
         if ( in_array( 'latepoint_agent', $old_roles ) && $role !== 'latepoint_agent' ) {
             $this->sync_agent( $user_id, 'disabled' );
         }
+    }
+
+    public function dynamic_agent_pricing( $booking_data, $booking ) {
+        if ( empty( $booking_data['agent_id'] ) ) return $booking_data;
+        
+        $rate = $this->get_agent_rate( $booking_data['agent_id'] );
+        if ( $rate ) {
+            $booking_data['custom_agent_rate'] = $rate;
+        }
+        
+        return $booking_data;
+    }
+
+    public function agent_service_pricing( $charge_amount, $service_id, $agent_id = null ) {
+        if ( ! $agent_id ) return $charge_amount;
+        
+        $rate = $this->get_agent_rate( $agent_id );
+        return $rate ?: $charge_amount;
+    }
+
+    private function get_agent_rate( $agent_id ) {
+        static $cache = [];
+        
+        if ( isset( $cache[ $agent_id ] ) ) {
+            return $cache[ $agent_id ];
+        }
+        
+        if ( ! class_exists( '\OsAgentModel' ) ) {
+            return $cache[ $agent_id ] = false;
+        }
+        
+        $agent_model = new \OsAgentModel();
+        $agent = $agent_model->where( ['id' => $agent_id] )->get_results();
+        
+        if ( ! $agent || ! $agent[0]->wp_user_id ) {
+            return $cache[ $agent_id ] = false;
+        }
+        
+        $rate = get_user_meta( $agent[0]->wp_user_id, '_darsna_tutor_hourly_rate', true );
+        return $cache[ $agent_id ] = $rate ? (int) $rate : false;
     }
 
     public function user_menu( $items, $args ) {
