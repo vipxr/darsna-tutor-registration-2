@@ -28,15 +28,22 @@ final class Darsna_Tutor_Checkout {
 
     public function init() {
         if ( ! $this->check_deps() ) {
-            add_action( 'admin_notices', fn() => printf( '<div class="notice notice-error"><p><strong>Tutor Registration:</strong> Missing WooCommerce, Subscriptions, or LatePoint</p></div>' ) );
+            add_action( 'admin_notices', [ $this, 'show_notice' ] );
             return;
         }
         $this->setup();
     }
 
+    public function show_notice() {
+        echo '<div class="notice notice-error"><p><strong>Tutor Registration:</strong> Missing WooCommerce, Subscriptions, or LatePoint</p></div>';
+    }
+
     private function check_deps() {
         if ( ! function_exists( 'is_plugin_active' ) ) require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        return !array_filter( self::REQUIRED, fn($p) => !is_plugin_active($p) );
+        foreach ( self::REQUIRED as $plugin ) {
+            if ( ! is_plugin_active( $plugin ) ) return false;
+        }
+        return true;
     }
 
     private function setup() {
@@ -45,15 +52,23 @@ final class Darsna_Tutor_Checkout {
         add_action( 'woocommerce_checkout_process', [ $this, 'validate' ] );
         add_action( 'woocommerce_checkout_update_order_meta', [ $this, 'save' ] );
         
-        add_filter( 'woocommerce_cod_process_payment_order_status', fn() => 'on-hold' );
+        add_filter( 'woocommerce_cod_process_payment_order_status', [ $this, 'cod_hold' ] );
         add_action( 'woocommerce_order_status_completed', [ $this, 'complete' ] );
         add_action( 'woocommerce_subscription_status_updated', [ $this, 'status' ], 10, 3 );
         
-        add_action( 'delete_user', fn($id) => $this->sync($id, 'disabled') );
+        add_action( 'delete_user', [ $this, 'user_deleted' ] );
         add_filter( 'wp_nav_menu_items', [ $this, 'menu' ], 99, 2 );
         
         add_filter( 'latepoint_service_charge_amount', [ $this, 'pricing' ], 10, 3 );
         add_action( 'darsna_activate_agent', [ $this, 'activate' ], 10, 2 );
+    }
+
+    public function cod_hold() {
+        return 'on-hold';
+    }
+
+    public function user_deleted( $user_id ) {
+        $this->sync( $user_id, 'disabled' );
     }
 
     public function assets() {
@@ -404,4 +419,6 @@ final class Darsna_Tutor_Checkout {
     }
 }
 
-add_action( 'plugins_loaded', fn() => Darsna_Tutor_Checkout::instance() );
+add_action( 'plugins_loaded', function() {
+    Darsna_Tutor_Checkout::instance();
+} );
