@@ -59,7 +59,7 @@ final class Darsna_Tutor_Checkout {
         add_action( 'delete_user', [ $this, 'user_deleted' ] );
         add_filter( 'wp_nav_menu_items', [ $this, 'menu' ], 99, 2 );
         
-        add_filter( 'latepoint_service_charge_amount', [ $this, 'pricing' ], 10, 3 );
+        add_filter( 'latepoint_full_amount_for_service', [ $this, 'pricing' ], 10, 3 );
         add_action( 'darsna_activate_agent', [ $this, 'activate' ], 10, 2 );
     }
 
@@ -298,7 +298,6 @@ CSS;
             'display_name' => $user->display_name,
             'email' => $user->user_email,
             'phone' => $order ? $this->format_phone($order->get_billing_phone()) : '',
-            'bio' => $bio ? sanitize_textarea_field($bio) : '',
             'wp_user_id' => $user->ID,
             'status' => 'active'
         ];
@@ -310,19 +309,27 @@ CSS;
             $update = new \OsAgentModel();
             $update->load_by_id( $existing[0]->id );
             foreach ( $data as $k => $v ) $update->set_data( $k, $v );
-            return $update->save();
+            $result = $update->save();
+        } else {
+            $agent = new \OsAgentModel();
+            foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
+            $result = $agent->save();
+            
+            if ( ! $result ) {
+                global $wpdb;
+                $result = $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql')
+                ]) ) !== false;
+            }
         }
-
-        $agent = new \OsAgentModel();
-        foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
         
-        if ( $agent->save() ) return true;
-
-        global $wpdb;
-        return $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ]) ) !== false;
+        // Store bio separately if needed
+        if ( $bio && $result ) {
+            update_user_meta( $user->ID, '_darsna_tutor_bio', sanitize_textarea_field($bio) );
+        }
+        
+        return $result;
     }
 
     private function assign_service( $user_id, $service_id ) {
@@ -423,31 +430,33 @@ CSS;
         ] : null;
     }
 
-    public function pricing( $amount, $service_id, $agent_id = null ) {
-        if ( !$agent_id ) return $amount;
+    public function pricing( $amount_for_service, $booking, $apply_coupons ) {
+        if ( !isset($booking->agent_id) || !$booking->agent_id ) {
+            return $amount_for_service;
+        }
         
-        $key = "rate_{$agent_id}";
+        $key = "rate_{$booking->agent_id}";
         if ( isset( self::$cache[$key] ) ) {
-            return self::$cache[$key] ? self::$cache[$key] : $amount;
+            return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
         }
         
         if ( !class_exists('\OsAgentModel') ) {
             self::$cache[$key] = false;
-            return $amount;
+            return $amount_for_service;
         }
         
         $model = new \OsAgentModel();
-        $agent = $model->where(['id' => $agent_id])->get_results();
+        $agent = $model->where(['id' => $booking->agent_id])->get_results();
         
         if ( !$agent || !$agent[0]->wp_user_id ) {
             self::$cache[$key] = false;
-            return $amount;
+            return $amount_for_service;
         }
         
         $rate = get_user_meta( $agent[0]->wp_user_id, '_darsna_tutor_hourly_rate', true );
         self::$cache[$key] = $rate ? (int)$rate : false;
         
-        return self::$cache[$key] ? self::$cache[$key] : $amount;
+        return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
     }
 
     public function menu( $items, $args ) {
