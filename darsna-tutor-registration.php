@@ -253,17 +253,17 @@ CSS;
     }
 
     private function sync( $user_id, $status = 'active' ) {
-        if ( !class_exists('\OsAgentModel') ) return false;
+        $model = $this->get_agent_model();
+        if ( ! $model ) return false;
 
         $user = get_userdata( $user_id );
         if ( !$user ) return false;
 
-        $model = new \OsAgentModel();
         $agents = $model->where(['wp_user_id' => $user_id])->get_results();
 
         if ( $agents ) {
             $agent = $agents[0];
-            $update = new \OsAgentModel();
+            $update = $this->get_agent_model();
             if ( method_exists($update, 'load_by_id') ) {
                 $update->load_by_id( $agent->id );
             } else {
@@ -280,6 +280,9 @@ CSS;
     }
 
     private function create_agent( $user ) {
+        $model = $this->get_agent_model();
+        if ( ! $model ) return false;
+
         $order = $this->get_order( $user->ID );
         $bio = get_user_meta( $user->ID, '_darsna_tutor_bio', true );
         
@@ -302,16 +305,15 @@ CSS;
             'status' => 'active'
         ];
 
-        $model = new \OsAgentModel();
         $existing = $model->where(['email' => $data['email']])->get_results();
         
         if ( $existing ) {
-            $update = new \OsAgentModel();
+            $update = $this->get_agent_model();
             $update->load_by_id( $existing[0]->id );
             foreach ( $data as $k => $v ) $update->set_data( $k, $v );
             $result = $update->save();
         } else {
-            $agent = new \OsAgentModel();
+            $agent = $this->get_agent_model();
             foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
             $result = $agent->save();
             
@@ -333,9 +335,9 @@ CSS;
     }
 
     private function assign_service( $user_id, $service_id ) {
-        if ( !class_exists('\OsAgentModel') || !$service_id ) return false;
+        $model = $this->get_agent_model();
+        if ( ! $model || !$service_id ) return false;
 
-        $model = new \OsAgentModel();
         $agents = $model->where(['wp_user_id' => $user_id, 'status' => 'active'])->get_results();
         if ( !$agents ) return false;
 
@@ -354,9 +356,9 @@ CSS;
     }
 
     private function set_schedule( $user_id, $schedule ) {
-        if ( !class_exists('\OsAgentModel') || !$schedule ) return;
+        $model = $this->get_agent_model();
+        if ( ! $model || !$schedule ) return;
 
-        $model = new \OsAgentModel();
         $agents = $model->where(['wp_user_id' => $user_id])->get_results();
         if ( !$agents ) return;
 
@@ -394,10 +396,28 @@ CSS;
         return ((int)$parts[0] * 60) + (int)($parts[1] ?? 0);
     }
 
+    private function get_agent_model() {
+        if ( class_exists('\OsAgent') ) {
+            return new \OsAgent(); // LatePoint v5
+        } elseif ( class_exists('\OsAgentModel') ) {
+            return new \OsAgentModel(); // LatePoint v4
+        }
+        return null;
+    }
+
+    private function get_service_model() {
+        if ( class_exists('\OsService') ) {
+            return new \OsService(); // LatePoint v5
+        } elseif ( class_exists('\OsServiceModel') ) {
+            return new \OsServiceModel(); // LatePoint v4
+        }
+        return null;
+    }
+
     private function services() {
         if ( ! isset( self::$cache['services'] ) ) {
-            if ( class_exists('\OsServiceModel') ) {
-                $model = new \OsServiceModel();
+            $model = $this->get_service_model();
+            if ( $model ) {
                 self::$cache['services'] = $model->where(['status' => 'active'])->get_results() ?: [];
             } else {
                 self::$cache['services'] = [];
@@ -440,12 +460,12 @@ CSS;
             return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
         }
         
-        if ( !class_exists('\OsAgentModel') ) {
+        $model = $this->get_agent_model();
+        if ( ! $model ) {
             self::$cache[$key] = false;
             return $amount_for_service;
         }
         
-        $model = new \OsAgentModel();
         $agent = $model->where(['id' => $booking->agent_id])->get_results();
         
         if ( !$agent || !$agent[0]->wp_user_id ) {
