@@ -253,15 +253,19 @@ CSS;
     }
 
     private function sync( $user_id, $status = 'active' ) {
-        $model = $this->get_agent_model();
-        if ( ! $model ) return false;
-
         $user = get_userdata( $user_id );
         if ( !$user ) return false;
 
-        $agents = $model->where(['wp_user_id' => $user_id])->get_results();
+        $model = $this->get_agent_model();
+        $agents = null;
+        
+        // Try to get existing agents if model is available
+        if ( $model ) {
+            $agents = $model->where(['wp_user_id' => $user_id])->get_results();
+        }
 
         if ( $agents ) {
+            // Update existing agent using model
             $agent = $agents[0];
             $update = $this->get_agent_model();
             if ( method_exists($update, 'load_by_id') ) {
@@ -273,6 +277,7 @@ CSS;
             $update->set_data( 'status', $status );
             return $update->save();
         } elseif ( $status === 'active' ) {
+            // Create new agent (will use model if available, otherwise DB fallback)
             return $this->create_agent( $user );
         }
         
@@ -280,9 +285,6 @@ CSS;
     }
 
     private function create_agent( $user ) {
-        $model = $this->get_agent_model();
-        if ( ! $model ) return false;
-
         $order = $this->get_order( $user->ID );
         $bio = get_user_meta( $user->ID, '_darsna_tutor_bio', true );
         
@@ -305,25 +307,32 @@ CSS;
             'status' => 'active'
         ];
 
-        $existing = $model->where(['email' => $data['email']])->get_results();
+        $model = $this->get_agent_model();
+        $result = false;
         
-        if ( $existing ) {
-            $update = $this->get_agent_model();
-            $update->load_by_id( $existing[0]->id );
-            foreach ( $data as $k => $v ) $update->set_data( $k, $v );
-            $result = $update->save();
-        } else {
-            $agent = $this->get_agent_model();
-            foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
-            $result = $agent->save();
+        if ( $model ) {
+            // Try using LatePoint model first
+            $existing = $model->where(['email' => $data['email']])->get_results();
             
-            if ( ! $result ) {
-                global $wpdb;
-                $result = $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
-                    'created_at' => current_time('mysql'),
-                    'updated_at' => current_time('mysql')
-                ]) ) !== false;
+            if ( $existing ) {
+                $update = $this->get_agent_model();
+                $update->load_by_id( $existing[0]->id );
+                foreach ( $data as $k => $v ) $update->set_data( $k, $v );
+                $result = $update->save();
+            } else {
+                $agent = $this->get_agent_model();
+                foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
+                $result = $agent->save();
             }
+        }
+        
+        // If model failed or doesn't exist, use direct database insert
+        if ( ! $result ) {
+            global $wpdb;
+            $result = $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ]) ) !== false;
         }
         
         // Store bio separately if needed
@@ -335,10 +344,25 @@ CSS;
     }
 
     private function assign_service( $user_id, $service_id ) {
-        $model = $this->get_agent_model();
-        if ( ! $model || !$service_id ) return false;
+        if ( !$service_id ) return false;
 
-        $agents = $model->where(['wp_user_id' => $user_id, 'status' => 'active'])->get_results();
+        $model = $this->get_agent_model();
+        $agents = null;
+        
+        // Try to get agent using model if available
+        if ( $model ) {
+            $agents = $model->where(['wp_user_id' => $user_id, 'status' => 'active'])->get_results();
+        } 
+        
+        // If no model, try direct database query
+        if ( !$agents ) {
+            global $wpdb;
+            $agents = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d AND status = 'active'",
+                $user_id
+            ) );
+        }
+        
         if ( !$agents ) return false;
 
         global $wpdb;
@@ -356,10 +380,25 @@ CSS;
     }
 
     private function set_schedule( $user_id, $schedule ) {
-        $model = $this->get_agent_model();
-        if ( ! $model || !$schedule ) return;
+        if ( !$schedule ) return;
 
-        $agents = $model->where(['wp_user_id' => $user_id])->get_results();
+        $model = $this->get_agent_model();
+        $agents = null;
+        
+        // Try to get agent using model if available
+        if ( $model ) {
+            $agents = $model->where(['wp_user_id' => $user_id])->get_results();
+        }
+        
+        // If no model, try direct database query
+        if ( !$agents ) {
+            global $wpdb;
+            $agents = $wpdb->get_results( $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d",
+                $user_id
+            ) );
+        }
+        
         if ( !$agents ) return;
 
         global $wpdb;
@@ -397,20 +436,28 @@ CSS;
     }
 
     private function get_agent_model() {
-        if ( class_exists('\OsAgent') ) {
-            return new \OsAgent(); // LatePoint v5
-        } elseif ( class_exists('\OsAgentModel') ) {
-            return new \OsAgentModel(); // LatePoint v4
+        // LatePoint v5
+        if ( class_exists('\LatePoint\App\Models\Agent') ) {
+            return new \LatePoint\App\Models\Agent();
         }
+        // LatePoint v4
+        if ( class_exists('\OsAgentModel') ) {
+            return new \OsAgentModel();
+        }
+        // No model found
         return null;
     }
 
     private function get_service_model() {
-        if ( class_exists('\OsService') ) {
-            return new \OsService(); // LatePoint v5
-        } elseif ( class_exists('\OsServiceModel') ) {
-            return new \OsServiceModel(); // LatePoint v4
+        // LatePoint v5
+        if ( class_exists('\LatePoint\App\Models\Service') ) {
+            return new \LatePoint\App\Models\Service();
         }
+        // LatePoint v4
+        if ( class_exists('\OsServiceModel') ) {
+            return new \OsServiceModel();
+        }
+        // No model found
         return null;
     }
 
@@ -461,19 +508,29 @@ CSS;
         }
         
         $model = $this->get_agent_model();
-        if ( ! $model ) {
+        $agent = null;
+        
+        // Try using model if available
+        if ( $model ) {
+            $agents = $model->where(['id' => $booking->agent_id])->get_results();
+            $agent = $agents[0] ?? null;
+        }
+        
+        // If no model, try direct database query
+        if ( !$agent ) {
+            global $wpdb;
+            $agent = $wpdb->get_row( $wpdb->prepare(
+                "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+                $booking->agent_id
+            ) );
+        }
+        
+        if ( !$agent || !$agent->wp_user_id ) {
             self::$cache[$key] = false;
             return $amount_for_service;
         }
         
-        $agent = $model->where(['id' => $booking->agent_id])->get_results();
-        
-        if ( !$agent || !$agent[0]->wp_user_id ) {
-            self::$cache[$key] = false;
-            return $amount_for_service;
-        }
-        
-        $rate = get_user_meta( $agent[0]->wp_user_id, '_darsna_tutor_hourly_rate', true );
+        $rate = get_user_meta( $agent->wp_user_id, '_darsna_tutor_hourly_rate', true );
         self::$cache[$key] = $rate ? (int)$rate : false;
         
         return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
