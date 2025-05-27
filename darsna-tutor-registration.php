@@ -74,30 +74,42 @@ final class Darsna_Tutor_Checkout {
     public function assets() {
         if ( ! is_checkout() ) return;
         
-        wp_add_inline_script( 'jquery', "jQuery(function($){
-            $('#billing_phone').attr('placeholder','+96512345678').on('input',function(){
-                var v=$(this).val().replace(/[^\\d+]/g,'');
-                $(this).val(v&&!v.startsWith('+')?'+'+v:v);
-            });
-            $('#tutor_bio').after('<div id=\"c\">0/500</div>').on('input',function(){
-                var l=$(this).val().length;$('#c').text(l+'/500').css('color',l>500?'red':'#666');
-            });
-            $('.day').change(function(){$('.times')[$('.day:checked').length?'show':'hide']();});
-            $('.times').show(); // Show by default since days are pre-checked
-        });" );
+        $js = <<<'JS'
+jQuery(function($) {
+    $('#billing_phone').attr('placeholder', '+96512345678').on('input', function() {
+        var v = $(this).val().replace(/[^\d+]/g, '');
+        $(this).val(v && !v.startsWith('+') ? '+' + v : v);
+    });
+    
+    $('#tutor_bio').after('<div id="c">0/500</div>').on('input', function() {
+        var l = $(this).val().length;
+        $('#c').text(l + '/500').css('color', l > 500 ? 'red' : '#666');
+    });
+    
+    $('.day').change(function() {
+        $('.times')[$('.day:checked').length ? 'show' : 'hide']();
+    });
+    
+    $('.times').show(); // Show by default since days are pre-checked
+});
+JS;
+
+        wp_add_inline_script( 'jquery', $js );
         
-        wp_add_inline_style( 'woocommerce-general', "
-            .tutor{background:#f9f9f9;border:1px solid #e1e1e1;border-radius:8px;padding:20px;margin:20px 0}
-            .tutor h3{margin-top:0;color:#0073aa;border-bottom:2px solid #0073aa;padding-bottom:10px}
-            .row{display:flex;gap:20px;margin-bottom:15px}.row .form-row{flex:1}
-            #tutor_service,#tutor_hourly_rate,#tutor_bio{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
-            #tutor_bio{min-height:80px;resize:vertical}#c{font-size:12px;color:#666;margin-top:5px}
-            .sched{margin-top:15px;padding-top:15px;border-top:1px solid #ddd}
-            .days{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:10px 0}
-            .day-item{display:flex;align-items:center;gap:5px;font-size:13px}
-            .times{margin-top:15px}.time-row{display:flex;gap:15px;align-items:center}
-            .time-row input{padding:8px;border:1px solid #ddd;border-radius:4px;width:120px}
-        " );
+        $css = <<<'CSS'
+.tutor{background:#f9f9f9;border:1px solid #e1e1e1;border-radius:8px;padding:20px;margin:20px 0}
+.tutor h3{margin-top:0;color:#0073aa;border-bottom:2px solid #0073aa;padding-bottom:10px}
+.row{display:flex;gap:20px;margin-bottom:15px}.row .form-row{flex:1}
+#tutor_service,#tutor_hourly_rate,#tutor_bio{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
+#tutor_bio{min-height:80px;resize:vertical}#c{font-size:12px;color:#666;margin-top:5px}
+.sched{margin-top:15px;padding-top:15px;border-top:1px solid #ddd}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:10px 0}
+.day-item{display:flex;align-items:center;gap:5px;font-size:13px}
+.times{margin-top:15px}.time-row{display:flex;gap:15px;align-items:center}
+.time-row input{padding:8px;border:1px solid #ddd;border-radius:4px;width:120px}
+CSS;
+
+        wp_add_inline_style( 'woocommerce-general', $css );
     }
 
     public function fields( $checkout ) {
