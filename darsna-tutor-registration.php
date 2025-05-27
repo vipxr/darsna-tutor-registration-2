@@ -83,6 +83,7 @@ final class Darsna_Tutor_Checkout {
                 var l=$(this).val().length;$('#c').text(l+'/500').css('color',l>500?'red':'#666');
             });
             $('.day').change(function(){$('.times')[$('.day:checked').length?'show':'hide']();});
+            $('.times').show(); // Show by default since days are pre-checked
         });" );
         
         wp_add_inline_style( 'woocommerce-general', "
@@ -94,7 +95,7 @@ final class Darsna_Tutor_Checkout {
             .sched{margin-top:15px;padding-top:15px;border-top:1px solid #ddd}
             .days{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:10px 0}
             .day-item{display:flex;align-items:center;gap:5px;font-size:13px}
-            .times{display:none;margin-top:15px}.time-row{display:flex;gap:15px;align-items:center}
+            .times{margin-top:15px}.time-row{display:flex;gap:15px;align-items:center}
             .time-row input{padding:8px;border:1px solid #ddd;border-radius:4px;width:120px}
         " );
     }
@@ -126,11 +127,15 @@ final class Darsna_Tutor_Checkout {
             'placeholder' => 'Teaching background and specialties...', 'custom_attributes' => ['maxlength' => '500', 'rows' => '4']
         ], $checkout->get_value( 'tutor_bio' ) );
 
-        echo '<div class="sched"><h4>Availability</h4><p style="font-size:13px;color:#666">Set default hours (optional)</p><div class="days">';
+        echo '<div class="sched"><h4>Availability</h4><p style="font-size:13px;color:#666">Set your teaching hours</p><div class="days">';
         
         $days = ['mon'=>'M', 'tue'=>'T', 'wed'=>'W', 'thu'=>'T', 'fri'=>'F', 'sat'=>'S', 'sun'=>'S'];
+        $default_days = ['mon', 'tue', 'wed', 'thu', 'sun']; // All except Fri & Sat
+        
         foreach ( $days as $k => $l ) {
-            $c = $checkout->get_value( 'schedule_' . $k ) ? 'checked' : '';
+            $checked_val = $checkout->get_value( 'schedule_' . $k );
+            $is_checked = $checked_val !== null ? $checked_val : in_array( $k, $default_days );
+            $c = $is_checked ? 'checked' : '';
             echo "<div class=\"day-item\"><input type=\"checkbox\" id=\"s{$k}\" name=\"schedule_{$k}\" value=\"1\" class=\"day\" {$c}><label for=\"s{$k}\">{$l}</label></div>";
         }
         
@@ -160,14 +165,24 @@ final class Darsna_Tutor_Checkout {
         update_post_meta( $order_id, '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ?? '' ) );
 
         $sched = [];
+        $has_days = false;
         foreach ( ['mon','tue','wed','thu','fri','sat','sun'] as $d ) {
-            if ( $_POST["schedule_{$d}"] ?? false ) $sched[$d] = 1;
+            if ( $_POST["schedule_{$d}"] ?? false ) {
+                $sched[$d] = 1;
+                $has_days = true;
+            }
         }
-        if ( $sched && $_POST['schedule_start'] && $_POST['schedule_end'] ) {
-            $sched['start'] = sanitize_text_field( $_POST['schedule_start'] );
-            $sched['end'] = sanitize_text_field( $_POST['schedule_end'] );
-            update_post_meta( $order_id, '_tutor_schedule', $sched );
+        
+        // If no days selected, use default (all except Fri & Sat)
+        if ( ! $has_days ) {
+            foreach ( ['mon','tue','wed','thu','sun'] as $d ) {
+                $sched[$d] = 1;
+            }
         }
+        
+        $sched['start'] = sanitize_text_field( $_POST['schedule_start'] ?? '09:00' );
+        $sched['end'] = sanitize_text_field( $_POST['schedule_end'] ?? '17:00' );
+        update_post_meta( $order_id, '_tutor_schedule', $sched );
     }
 
     public function complete( $order_id ) {
@@ -361,17 +376,24 @@ final class Darsna_Tutor_Checkout {
     }
 
     private function services() {
-        return self::$cache['services'] ??= (
-            class_exists('\OsServiceModel') ? 
-            (new \OsServiceModel())->where(['status' => 'active'])->get_results() ?: [] : 
-            []
-        );
+        if ( ! isset( self::$cache['services'] ) ) {
+            if ( class_exists('\OsServiceModel') ) {
+                $model = new \OsServiceModel();
+                self::$cache['services'] = $model->where(['status' => 'active'])->get_results() ?: [];
+            } else {
+                self::$cache['services'] = [];
+            }
+        }
+        return self::$cache['services'];
     }
 
     private function get_order( $user_id ) {
-        return self::$cache["order_{$user_id}"] ??= (
-            wc_get_orders(['customer' => $user_id, 'limit' => 1, 'orderby' => 'date', 'order' => 'DESC'])[0] ?? null
-        );
+        $key = "order_{$user_id}";
+        if ( ! isset( self::$cache[$key] ) ) {
+            $orders = wc_get_orders(['customer' => $user_id, 'limit' => 1, 'orderby' => 'date', 'order' => 'DESC']);
+            self::$cache[$key] = $orders[0] ?? null;
+        }
+        return self::$cache[$key];
     }
 
     private function get_data( $user_id ) {
@@ -393,17 +415,27 @@ final class Darsna_Tutor_Checkout {
         if ( !$agent_id ) return $amount;
         
         $key = "rate_{$agent_id}";
-        if ( isset( self::$cache[$key] ) ) return self::$cache[$key] ?: $amount;
+        if ( isset( self::$cache[$key] ) ) {
+            return self::$cache[$key] ? self::$cache[$key] : $amount;
+        }
         
-        if ( !class_exists('\OsAgentModel') ) return self::$cache[$key] = false;
+        if ( !class_exists('\OsAgentModel') ) {
+            self::$cache[$key] = false;
+            return $amount;
+        }
         
         $model = new \OsAgentModel();
         $agent = $model->where(['id' => $agent_id])->get_results();
         
-        if ( !$agent || !$agent[0]->wp_user_id ) return self::$cache[$key] = false;
+        if ( !$agent || !$agent[0]->wp_user_id ) {
+            self::$cache[$key] = false;
+            return $amount;
+        }
         
         $rate = get_user_meta( $agent[0]->wp_user_id, '_darsna_tutor_hourly_rate', true );
-        return self::$cache[$key] = $rate ? (int)$rate : false;
+        self::$cache[$key] = $rate ? (int)$rate : false;
+        
+        return self::$cache[$key] ? self::$cache[$key] : $amount;
     }
 
     public function menu( $items, $args ) {
