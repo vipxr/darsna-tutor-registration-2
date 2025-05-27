@@ -71,6 +71,7 @@ final class Darsna_Tutor_Checkout {
         
         add_filter( 'wp_nav_menu_items', [ $this, 'user_menu' ], 99, 2 );
         add_action( 'darsna_assign_service', [ $this, 'delayed_service_assignment' ], 10, 2 );
+        add_action( 'darsna_apply_schedule', [ $this, 'apply_agent_schedule' ], 10, 2 );
         
         add_filter( 'latepoint_booking_data_for_pricing_calculation', [ $this, 'dynamic_agent_pricing' ], 10, 2 );
         add_filter( 'latepoint_service_charge_amount', [ $this, 'agent_service_pricing' ], 10, 3 );
@@ -93,6 +94,11 @@ final class Darsna_Tutor_Checkout {
                         var len = $(this).val().length;
                         $('#bio-counter').text(len + '/500').css('color', len > 500 ? '#d63638' : '#666');
                     });
+
+                $('.schedule-day').change(function() {
+                    var checked = $('.schedule-day:checked').length;
+                    $('.schedule-times')[checked > 0 ? 'show' : 'hide']();
+                });
             });
         " );
         
@@ -103,6 +109,12 @@ final class Darsna_Tutor_Checkout {
             .tutor-row .form-row{flex:1}
             #tutor_service,#tutor_hourly_rate,#tutor_bio{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
             #tutor_bio{min-height:80px;resize:vertical}
+            .schedule-section{margin-top:20px;padding-top:15px;border-top:1px solid #ddd}
+            .schedule-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:10px;margin:10px 0}
+            .schedule-day-item{display:flex;align-items:center;gap:5px;font-size:13px}
+            .schedule-times{display:none;margin-top:15px}
+            .schedule-time-row{display:flex;gap:15px;align-items:center}
+            .schedule-time-row input{padding:8px;border:1px solid #ddd;border-radius:4px;width:120px}
         " );
     }
 
@@ -154,6 +166,32 @@ final class Darsna_Tutor_Checkout {
             'custom_attributes' => ['maxlength' => '500', 'rows' => '4'],
         ], $checkout->get_value( 'tutor_bio' ) );
 
+        echo '<div class="schedule-section">
+            <h4>' . __( 'Availability (Optional)', 'darsna' ) . '</h4>
+            <p style="font-size:13px;color:#666;margin:5px 0 15px">' . __( 'Set your default teaching hours. You can adjust this later in your dashboard.', 'darsna' ) . '</p>
+            
+            <div class="schedule-days">';
+            
+        $days = ['mon' => 'Mon', 'tue' => 'Tue', 'wed' => 'Wed', 'thu' => 'Thu', 'fri' => 'Fri', 'sat' => 'Sat', 'sun' => 'Sun'];
+        foreach ( $days as $key => $label ) {
+            $checked = $checkout->get_value( 'schedule_' . $key ) ? 'checked' : '';
+            echo '<div class="schedule-day-item">
+                <input type="checkbox" id="schedule_' . $key . '" name="schedule_' . $key . '" value="1" class="schedule-day" ' . $checked . '>
+                <label for="schedule_' . $key . '">' . $label . '</label>
+            </div>';
+        }
+        
+        echo '</div>
+            <div class="schedule-times">
+                <div class="schedule-time-row">
+                    <label>' . __( 'From:', 'darsna' ) . '</label>
+                    <input type="time" name="schedule_start" value="' . esc_attr( $checkout->get_value( 'schedule_start' ) ?: '09:00' ) . '">
+                    <label>' . __( 'To:', 'darsna' ) . '</label>
+                    <input type="time" name="schedule_end" value="' . esc_attr( $checkout->get_value( 'schedule_end' ) ?: '17:00' ) . '">
+                </div>
+            </div>
+        </div>';
+
         echo '</div>';
     }
 
@@ -183,6 +221,12 @@ final class Darsna_Tutor_Checkout {
         if ( ! empty( $_POST['tutor_bio'] ) && strlen( $_POST['tutor_bio'] ) > 500 ) {
             wc_add_notice( __( 'Bio too long', 'darsna' ), 'error' );
         }
+
+        if ( ! empty( $_POST['schedule_start'] ) && ! empty( $_POST['schedule_end'] ) ) {
+            if ( $_POST['schedule_start'] >= $_POST['schedule_end'] ) {
+                wc_add_notice( __( 'End time must be after start time', 'darsna' ), 'error' );
+            }
+        }
     }
 
     public function save_order_data( $order_id ) {
@@ -191,6 +235,20 @@ final class Darsna_Tutor_Checkout {
             if ( ! empty( $_POST[ $field ] ) ) {
                 update_post_meta( $order_id, $meta, sanitize_text_field( $_POST[ $field ] ) );
             }
+        }
+
+        $schedule = [];
+        $days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+        foreach ( $days as $day ) {
+            if ( ! empty( $_POST[ 'schedule_' . $day ] ) ) {
+                $schedule[ $day ] = 1;
+            }
+        }
+        
+        if ( ! empty( $schedule ) && ! empty( $_POST['schedule_start'] ) && ! empty( $_POST['schedule_end'] ) ) {
+            $schedule['start'] = sanitize_text_field( $_POST['schedule_start'] );
+            $schedule['end'] = sanitize_text_field( $_POST['schedule_end'] );
+            update_post_meta( $order_id, '_tutor_schedule', $schedule );
         }
     }
 
@@ -414,15 +472,53 @@ final class Darsna_Tutor_Checkout {
         $service_id = $order->get_meta( '_tutor_service_id' );
         $rate = $order->get_meta( '_tutor_hourly_rate' );
         
-        return ( $service_id && $rate ) ? [
+        if ( ! $service_id || ! $rate ) return null;
+
+        return [
             'service_id' => (int) $service_id,
             'hourly_rate' => (int) $rate,
-            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) )
-        ] : null;
+            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
+            'schedule' => $order->get_meta( '_tutor_schedule' ) ?: []
+        ];
     }
 
     public function delayed_service_assignment( $user_id, $service_id ) {
         $this->assign_service( $user_id, $service_id );
+    }
+
+    public function apply_agent_schedule( $user_id, $schedule ) {
+        if ( ! class_exists( '\OsAgentModel' ) || empty( $schedule ) ) return;
+
+        $agent_model = new \OsAgentModel();
+        $agents = $agent_model->where( ['wp_user_id' => $user_id, 'status' => 'active'] )->get_results();
+        if ( ! $agents ) return;
+
+        global $wpdb;
+        $agent_id = $agents[0]->id;
+        $table = $wpdb->prefix . 'latepoint_work_periods';
+
+        $wpdb->delete( $table, ['agent_id' => $agent_id], ['%d'] );
+
+        $day_map = ['mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4, 'fri' => 5, 'sat' => 6, 'sun' => 7];
+        $start_minutes = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
+        $end_minutes = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
+
+        foreach ( $day_map as $day => $week_day ) {
+            if ( ! empty( $schedule[ $day ] ) ) {
+                $wpdb->insert( $table, [
+                    'agent_id' => $agent_id,
+                    'week_day' => $week_day,
+                    'start_time' => $start_minutes,
+                    'end_time' => $end_minutes,
+                    'chain_id' => wp_generate_uuid4()
+                ], ['%d', '%d', '%d', '%d', '%s'] );
+            }
+        }
+    }
+
+    private function time_to_minutes( $time ) {
+        $parts = explode( ':', $time );
+        return ( (int) $parts[0] * 60 ) + ( (int) ( $parts[1] ?? 0 ) );
     }
 
     private function assign_service( $user_id, $service_id ) {
