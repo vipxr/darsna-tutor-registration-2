@@ -202,7 +202,19 @@ CSS;
         if ( !$order || !function_exists('wcs_get_subscriptions_for_order') ) return;
         
         foreach ( wcs_get_subscriptions_for_order( $order ) as $sub ) {
-            wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $sub->get_user_id(), $sub->get_id() ] );
+            $uid = $sub->get_user_id();
+            $sub_id = $sub->get_id();
+            
+            // Direct call for immediate processing (testing)
+            // Remove comment to test without cron dependency
+            // $this->activate( $uid, $sub_id );
+            
+            // Scheduled call (production) - uses Action Scheduler if available
+            if ( function_exists( 'as_schedule_single_action' ) ) {
+                as_schedule_single_action( time() + 5, 'darsna_activate_agent', [ $uid, $sub_id ] );
+            } else {
+                wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $uid, $sub_id ] );
+            }
         }
     }
 
@@ -215,7 +227,12 @@ CSS;
         if ( in_array( $new, self::ACTIVE ) ) {
             $parent = $sub->get_parent_id() ? wc_get_order( $sub->get_parent_id() ) : null;
             if ( $parent && $parent->get_status() === 'completed' ) {
-                wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $uid, $sub->get_id() ] );
+                // Use Action Scheduler if available, otherwise wp_cron
+                if ( function_exists( 'as_schedule_single_action' ) ) {
+                    as_schedule_single_action( time() + 5, 'darsna_activate_agent', [ $uid, $sub->get_id() ] );
+                } else {
+                    wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $uid, $sub->get_id() ] );
+                }
             } else {
                 $sub->update_status( 'on-hold', 'Pending approval' );
             }
@@ -307,26 +324,38 @@ CSS;
             'status' => 'active'
         ];
 
-        $model = $this->get_agent_model();
         $result = false;
         
-        if ( $model ) {
-            // Try using LatePoint model first
-            $existing = $model->where(['email' => $data['email']])->get_results();
-            
-            if ( $existing ) {
-                $update = $this->get_agent_model();
-                $update->load_by_id( $existing[0]->id );
-                foreach ( $data as $k => $v ) $update->set_data( $k, $v );
-                $result = $update->save();
-            } else {
-                $agent = $this->get_agent_model();
-                foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
-                $result = $agent->save();
+        // Try LatePoint v5 Repository API first
+        if ( class_exists('\LatePoint\App\Repositories\AgentRepository') ) {
+            try {
+                $agent = \LatePoint\App\Repositories\AgentRepository::create( $data );
+                $result = $agent && isset( $agent->id );
+            } catch ( Exception $e ) {
+                $result = false;
             }
         }
         
-        // If model failed or doesn't exist, use direct database insert
+        // Fallback to v4 model approach
+        if ( ! $result ) {
+            $model = $this->get_agent_model();
+            if ( $model ) {
+                $existing = $model->where(['email' => $data['email']])->get_results();
+                
+                if ( $existing ) {
+                    $update = $this->get_agent_model();
+                    $update->load_by_id( $existing[0]->id );
+                    foreach ( $data as $k => $v ) $update->set_data( $k, $v );
+                    $result = $update->save();
+                } else {
+                    $agent = $this->get_agent_model();
+                    foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
+                    $result = $agent->save();
+                }
+            }
+        }
+        
+        // Final fallback to direct database insert
         if ( ! $result ) {
             global $wpdb;
             $result = $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
@@ -365,16 +394,32 @@ CSS;
         
         if ( !$agents ) return false;
 
+        $agent_id = (int)$agents[0]->id;
+        
+        // Try LatePoint v5 Repository API first
+        if ( class_exists('\LatePoint\App\Repositories\AgentServiceRepository') ) {
+            try {
+                $assignment = \LatePoint\App\Repositories\AgentServiceRepository::create([
+                    'agent_id' => $agent_id,
+                    'service_id' => (int)$service_id,
+                ]);
+                return $assignment && isset( $assignment->id );
+            } catch ( Exception $e ) {
+                // Fall through to database method
+            }
+        }
+
+        // Fallback to direct database insert
         global $wpdb;
         $table = $wpdb->prefix . 'latepoint_agent_services';
         
         $exists = $wpdb->get_var( $wpdb->prepare(
             "SELECT id FROM {$table} WHERE agent_id = %d AND service_id = %d",
-            $agents[0]->id, $service_id
+            $agent_id, $service_id
         ));
 
         return $exists ?: $wpdb->insert( $table, [
-            'agent_id' => (int)$agents[0]->id,
+            'agent_id' => $agent_id,
             'service_id' => (int)$service_id
         ], ['%d', '%d'] ) !== false;
     }
