@@ -122,25 +122,40 @@ final class Darsna_Tutor_Main {
     }
     
 /**
- * Append Dashboard/Account + Logout to Divi’s primary menu
+ * Append Dashboard/Account + Logout links to Divi’s primary menu for logged-in users
  */
-function darsna_simplify_menu_links( $items, $args ) {
-    // only for logged‐in users on the Primary Menu
+function my_divi_customize_nav_menu( $items, $args ) {
     if ( ! is_user_logged_in() || 'primary-menu' !== $args->theme_location ) {
         return $items;
     }
 
-    // Dashboard for tutors, Account for everyone else
-    if ( current_user_can( 'latepoint_agent' ) ) {
-        $items .= '<li class="menu-item"><a href="' . admin_url( 'admin.php?page=latepoint' ) . '">Dashboard</a></li>';
+    $user     = wp_get_current_user();
+    $is_tutor = in_array( 'latepoint_agent', (array) $user->roles, true );
+
+    if ( $is_tutor ) {
+        $url   = admin_url( 'admin.php?page=latepoint' );
+        $label = __( 'Dashboard', 'your-text-domain' );
     } else {
-        $items .= '<li class="menu-item"><a href="' . get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) . '">Account</a></li>';
+        $url   = get_permalink( get_option( 'woocommerce_myaccount_page_id' ) );
+        $label = __( 'Account', 'your-text-domain' );
     }
 
-    // Logout link
-    $items .= '<li class="menu-item">' . wp_loginout( home_url(), false ) . '</li>';
+    // Dashboard or Account link
+    $items .= sprintf(
+        '<li class="menu-item"><a href="%s">%s</a></li>',
+        esc_url( $url ),
+        esc_html( $label )
+    );
+
+    // Always add Logout link
+    $logout_url = wp_logout_url( home_url() );
+    $items     .= sprintf(
+        '<li class="menu-item"><a href="%s">%s</a></li>',
+        esc_url( $logout_url ),
+        esc_html__( 'Logout', 'your-text-domain' )
+    );
 
     return $items;
 }
-add_filter( 'wp_nav_menu_items', 'darsna_simplify_menu_links', 10, 2 );
+add_filter( 'wp_nav_menu_items', 'my_divi_customize_nav_menu', 10, 2 );
 }
