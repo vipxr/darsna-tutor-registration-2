@@ -1,0 +1,243 @@
+/**
+ * Frontend styles for Darsna Tutor Registration
+ * 
+ * @package Darsna_Tutor_Registration
+ * @since 4.0.0
+ */
+
+/* ==========================================================================
+   Tutor Registration Fields
+   ========================================================================== */
+
+#tutor-registration-fields {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#tutor-registration-fields h3 {
+    margin: 0 0 20px 0;
+    color: #333;
+    font-size: 1.4em;
+    border-bottom: 2px solid #0073aa;
+    padding-bottom: 10px;
+}
+
+#tutor-registration-fields .form-row {
+    margin-bottom: 15px;
+}
+
+#tutor-registration-fields label {
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 5px;
+    display: block;
+}
+
+#tutor-registration-fields .required {
+    color: #e74c3c;
+}
+
+#tutor-registration-fields select,
+#tutor-registration-fields textarea,
+#tutor-registration-fields input[type="time"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+#tutor-registration-fields select:focus,
+#tutor-registration-fields textarea:focus,
+#tutor-registration-fields input[type="time"]:focus {
+    border-color: #0073aa;
+    outline: none;
+    box-shadow: 0 0 5px rgba(0, 115, 170, 0.3);
+}
+
+#tutor-registration-fields textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* ==========================================================================
+   Schedule Section
+   ========================================================================== */
+
+.tutor-schedule-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+}
+
+.tutor-schedule-section h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 1.2em;
+}
+
+.schedule-days {
+    margin-bottom: 20px;
+}
+
+.schedule-days > label {
+    font-weight: 600;
+    margin-bottom: 10px;
+    display: block;
+    color: #555;
+}
+
+.day-checkbox {
+    display: inline-block;
+    margin-right: 15px;
+    margin-bottom: 8px;
+    font-weight: normal !important;
+    cursor: pointer;
+}
+
+.day-checkbox input[type="checkbox"] {
+    margin-right: 5px;
+    transform: scale(1.1);
+}
+
+.day-checkbox:hover {
+    color: #0073aa;
+}
+
+.schedule-times {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.time-group {
+    flex: 1;
+    min-width: 150px;
+}
+
+.time-group label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    display: block;
+    color: #555;
+}
+
+.time-group input[type="time"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* ==========================================================================
+   Error Messages
+   ========================================================================== */
+
+#tutor-registration-fields .error {
+    color: #e74c3c;
+    background: #fdf2f2;
+    border: 1px solid #f5c6cb;
+    padding: 10px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+/* ==========================================================================
+   Responsive Design
+   ========================================================================== */
+
+@media (max-width: 768px) {
+    #tutor-registration-fields {
+        padding: 15px;
+        margin: 15px 0;
+    }
+    
+    .schedule-times {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .time-group {
+        min-width: auto;
+    }
+    
+    .day-checkbox {
+        display: block;
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    #tutor-registration-fields h3 {
+        font-size: 1.2em;
+    }
+    
+    .tutor-schedule-section h4 {
+        font-size: 1.1em;
+    }
+    
+    #tutor-registration-fields {
+        padding: 10px;
+    }
+}
+
+/* ==========================================================================
+   Loading States
+   ========================================================================== */
+
+.tutor-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.tutor-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Accessibility
+   ========================================================================== */
+
+#tutor-registration-fields *:focus {
+    outline: 2px solid #0073aa;
+    outline-offset: 2px;
+}
+
+.day-checkbox input[type="checkbox"]:focus + label {
+    color: #0073aa;
+}
+
+/* ==========================================================================
+   Print Styles
+   ========================================================================== */
+
+@media print {
+    #tutor-registration-fields {
+        box-shadow: none;
+        border: 1px solid #000;
+    }
+}
