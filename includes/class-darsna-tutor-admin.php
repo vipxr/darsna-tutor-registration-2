@@ -119,7 +119,9 @@ class Darsna_Tutor_Admin {
      * Main admin page
      */
     public function admin_page(): void {
+        error_log('Darsna Admin: admin_page() called');
         $agents = $this->get_all_agents();
+        error_log('Darsna Admin: admin_page() received ' . count($agents) . ' agents');
         $current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( $_GET['tab'] ) : 'list';
         
         ?>
@@ -245,10 +247,19 @@ class Darsna_Tutor_Admin {
      * Render agents table
      */
     private function render_agents_table( array $agents, string $filter = '' ): void {
+        error_log('Darsna Admin: render_agents_table() called with ' . count($agents) . ' agents and filter: ' . $filter);
+        
         if ( $filter ) {
+            $original_count = count($agents);
             $agents = array_filter( $agents, function( $agent ) use ( $filter ) {
                 return $agent->status === $filter;
             });
+            error_log('Darsna Admin: After filtering by "' . $filter . '": ' . count($agents) . ' agents (from ' . $original_count . ')');
+        }
+        
+        error_log('Darsna Admin: About to render table with ' . count($agents) . ' agents');
+        if (!empty($agents)) {
+            error_log('Darsna Admin: First agent sample: ' . print_r($agents[0], true));
         }
         
         ?>
@@ -352,8 +363,33 @@ class Darsna_Tutor_Admin {
      * Get all agents from LatePoint using backend service
      */
     private function get_all_agents(): array {
+        error_log('Darsna Admin: get_all_agents() called');
+        
         $backend = Darsna_Tutor_Backend::instance();
-        return $backend->get_all_agents();
+        if (!$backend) {
+            error_log('Darsna Admin: Backend instance is null');
+            return [];
+        }
+        
+        $agents = $backend->get_all_agents();
+        error_log('Darsna Admin: Retrieved ' . count($agents) . ' agents from backend');
+        
+        if (empty($agents)) {
+            error_log('Darsna Admin: No agents returned from backend');
+            // Check if LatePoint tables exist
+            global $wpdb;
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}latepoint_agents'");
+            error_log('Darsna Admin: latepoint_agents table exists: ' . ($table_exists ? 'YES' : 'NO'));
+            
+            if ($table_exists) {
+                $count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_agents");
+                error_log('Darsna Admin: Total agents in database: ' . $count);
+            }
+        } else {
+            error_log('Darsna Admin: Agent data sample: ' . print_r(array_slice($agents, 0, 1), true));
+        }
+        
+        return $agents;
     }
     
     /**
