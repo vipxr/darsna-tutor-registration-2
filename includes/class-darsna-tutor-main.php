@@ -121,26 +121,41 @@ final class Darsna_Tutor_Main {
         $backend->deactivate_tutor_agent( $user_id );
     }
     
-    /**
-     * Customize navigation menu for logged-in users
-     */
-    public function customize_nav_menu( $items, $args ) {
-        if ( ! is_user_logged_in() || $args->theme_location !== 'primary-menu' ) {
-            return $items;
-        }
-        
-        $user = wp_get_current_user();
-        $is_tutor = in_array( 'latepoint_agent', $user->roles, true );
-        
-        // Add tutor-specific menu items
-        if ( $is_tutor ) {
-            $tutor_menu = '<li class="menu-item"><a href="/wp-admin/admin.php?page=latepoint">Dashboard</a></li>';
-            $items .= $tutor_menu;
-        } else {
-            $tutor_menu = '<li class="menu-item"><a href="/my-account/">Account</a></li>';
-            $items.= $tutor_menu;
-        }
-        
+/**
+ * Append Dashboard/Account + Logout links to Divi’s primary menu for logged-in users
+ */
+function my_divi_customize_nav_menu( $items, $args ) {
+    if ( ! is_user_logged_in() || 'primary-menu' !== $args->theme_location ) {
         return $items;
     }
+
+    $user     = wp_get_current_user();
+    $is_tutor = in_array( 'latepoint_agent', (array) $user->roles, true );
+
+    if ( $is_tutor ) {
+        $url   = admin_url( 'admin.php?page=latepoint' );
+        $label = __( 'Dashboard', 'your-text-domain' );
+    } else {
+        $url   = get_permalink( get_option( 'woocommerce_myaccount_page_id' ) );
+        $label = __( 'Account', 'your-text-domain' );
+    }
+
+    // Dashboard or Account link
+    $items .= sprintf(
+        '<li class="menu-item"><a href="%s">%s</a></li>',
+        esc_url( $url ),
+        esc_html( $label )
+    );
+
+    // Always add Logout link
+    $logout_url = wp_logout_url( home_url() );
+    $items     .= sprintf(
+        '<li class="menu-item"><a href="%s">%s</a></li>',
+        esc_url( $logout_url ),
+        esc_html__( 'Logout', 'your-text-domain' )
+    );
+
+    return $items;
+}
+add_filter( 'wp_nav_menu_items', 'my_divi_customize_nav_menu', 10, 2 );
 }
