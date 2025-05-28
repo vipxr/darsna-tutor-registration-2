@@ -573,9 +573,36 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Get all agents from LatePoint with WordPress user data
+     * Get all agents from LatePoint using Repository API
      */
     public function get_all_agents(): array {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
+                $models = \OsRepositories\AgentsRepository::instance()->get_all();
+                
+                $out = [];
+                foreach ( $models as $m ) {
+                    // Convert model to array
+                    $data = $m->toArray();
+                    
+                    // Attach the WordPress user
+                    $wp = get_userdata( $m->wp_user_id );
+                    if ( $wp ) {
+                        $data['wp_user_id'] = $wp->ID;
+                        $data['wp_user'] = $wp;
+                    }
+                    
+                    $out[] = $data;
+                }
+                
+                return $out;
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
         global $wpdb;
         
         $agents_table = $wpdb->prefix . 'latepoint_agents';
@@ -597,9 +624,20 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Get agent by ID
+     * Get agent by ID using Repository API
      */
     public function get_agent_by_id( int $agent_id ) {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
+                $agent = \OsRepositories\AgentsRepository::instance()->get_by_id( $agent_id );
+                return $agent ? $agent->toArray() : null;
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
         global $wpdb;
         
         return $wpdb->get_row( $wpdb->prepare(
@@ -609,9 +647,44 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Get agent services with custom rates
+     * Get agent services using Repository API
      */
     public function get_agent_services( int $agent_id ): array {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsServicesRepository' ) ) {
+                $agent_services = \OsRepositories\AgentsServicesRepository::instance()->get_agent_services( $agent_id );
+                
+                $services = [];
+                foreach ( $agent_services as $agent_service ) {
+                    $service_data = $agent_service->toArray();
+                    
+                    // Get service details
+                    if ( class_exists( '\OsRepositories\ServicesRepository' ) ) {
+                        $service = \OsRepositories\ServicesRepository::instance()->get_by_id( $agent_service->service_id );
+                        if ( $service ) {
+                            $service_data = array_merge( $service_data, $service->toArray() );
+                        }
+                    }
+                    
+                    // Get custom rate from agent meta if available
+                    if ( $agent_service->is_custom_price === 'yes' ) {
+                        $custom_rate = $this->get_agent_meta( $agent_id, "service_{$agent_service->service_id}_rate" );
+                        if ( $custom_rate !== null ) {
+                            $service_data['custom_rate'] = floatval( $custom_rate );
+                        }
+                    }
+                    
+                    $services[] = (object) $service_data;
+                }
+                
+                return $services;
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
         global $wpdb;
         
         $agents_services_table = $wpdb->prefix . 'latepoint_agents_services';
@@ -735,9 +808,49 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Update agent meta data
+     * Get agent meta data
+     */
+    public function get_agent_meta( int $agent_id, string $meta_key ) {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
+                $agent = \OsRepositories\AgentsRepository::instance()->get_by_id( $agent_id );
+                if ( $agent ) {
+                    return $agent->get_meta( $meta_key );
+                }
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
+        global $wpdb;
+        
+        return $wpdb->get_var( $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key = %s",
+            $agent_id,
+            $meta_key
+        ));
+    }
+    
+    /**
+     * Update agent meta data using Repository API
      */
     public function update_agent_meta( int $agent_id, string $meta_key, $meta_value ): bool {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
+                $agent = \OsRepositories\AgentsRepository::instance()->get_by_id( $agent_id );
+                if ( $agent ) {
+                    $agent->save_meta( $meta_key, $meta_value );
+                    return true;
+                }
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
         global $wpdb;
         
         try {
@@ -778,9 +891,30 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Update agent basic information
+     * Update agent basic information using Repository API
      */
     public function update_agent_basic_info( int $agent_id, array $form_data ): bool {
+        try {
+            // Use LatePoint Repository API if available
+            if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
+                $agent = \OsRepositories\AgentsRepository::instance()->get_by_id( $agent_id );
+                if ( $agent ) {
+                    $agent->first_name = sanitize_text_field($form_data['first_name'] ?? '');
+                    $agent->last_name = sanitize_text_field($form_data['last_name'] ?? '');
+                    $agent->email = sanitize_email($form_data['email'] ?? '');
+                    $agent->phone = sanitize_text_field($form_data['phone'] ?? '');
+                    $agent->status = sanitize_text_field($form_data['status'] ?? 'active');
+                    $agent->bio = sanitize_textarea_field($form_data['bio'] ?? '');
+                    $agent->features = sanitize_textarea_field($form_data['features'] ?? '');
+                    
+                    return $agent->save();
+                }
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+        }
+        
+        // Fallback to direct database query
         global $wpdb;
         
         try {
