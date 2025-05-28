@@ -270,31 +270,65 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Assign services to agent
+     * Assign services to agent using LatePoint API
      */
     private function assign_agent_services( int $agent_id, int $service_id, array $tutor_data ): bool {
+        try {
+            // Check if LatePoint AgentsServicesRepository is available
+            if ( ! class_exists( '\OsRepositories\AgentsServicesRepository' ) ) {
+                error_log( "Darsna: LatePoint AgentsServicesRepository not found, falling back to direct database" );
+                return $this->assign_agent_services_fallback( $agent_id, $service_id, $tutor_data );
+            }
+            
+            // Build the service assignment row with custom hours and pricing
+            $row = [
+                'service_id'         => $service_id,
+                'location_id'        => $tutor_data['location_id'] ?? 1,
+                'is_custom_hours'    => isset( $tutor_data['schedule'] ) ? 1 : 0,
+                'custom_hours'       => $tutor_data['schedule'] ?? null,
+                'is_custom_price'    => isset( $tutor_data['hourly_rate'] ) ? 1 : 0,
+                'custom_price'       => $tutor_data['hourly_rate'] ?? null,
+                'is_custom_duration' => isset( $tutor_data['custom_duration'] ) ? 1 : 0,
+                'custom_duration'    => $tutor_data['custom_duration'] ?? null,
+            ];
+            
+            // Use LatePoint repository to sync agent services
+            $repo = \OsRepositories\AgentsServicesRepository::instance();
+            $success = $repo->sync_agent_services( $agent_id, [ $row ] );
+            
+            return (bool) $success;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error assigning services via API: " . $e->getMessage() );
+            return $this->assign_agent_services_fallback( $agent_id, $service_id, $tutor_data );
+        }
+    }
+    
+    /**
+     * Fallback method for direct database assignment
+     */
+    private function assign_agent_services_fallback( int $agent_id, int $service_id, array $tutor_data ): bool {
         global $wpdb;
         
         try {
             // Clear existing assignments
-            $table = $wpdb->prefix . 'latepoint_agents_services'; // Fixed table name
+            $table = $wpdb->prefix . 'latepoint_agents_services';
             $wpdb->delete( $table, [ 'agent_id' => $agent_id ], [ '%d' ] );
             
             // Add new assignment with custom pricing and hours from form data
             $result = $wpdb->insert( $table, [
                 'agent_id' => $agent_id,
                 'service_id' => $service_id,
-                'location_id' => 1, // Default location
-                'is_custom_hours' => 1, // We have custom schedule from form
-                'is_custom_price' => 1, // We have custom hourly rate from form
-                'is_custom_duration' => 0, // Use default service duration
+                'location_id' => $tutor_data['location_id'] ?? 1,
+                'is_custom_hours' => isset( $tutor_data['schedule'] ) ? 1 : 0,
+                'is_custom_price' => isset( $tutor_data['hourly_rate'] ) ? 1 : 0,
+                'is_custom_duration' => isset( $tutor_data['custom_duration'] ) ? 1 : 0,
                 'created_at' => current_time('mysql'),
                 'updated_at' => current_time('mysql')
             ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s' ] );
             
             return $result !== false;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error assigning services: " . $e->getMessage() );
+            error_log( "Darsna: Error in fallback assignment: " . $e->getMessage() );
             return false;
         }
     }
