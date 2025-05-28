@@ -717,6 +717,13 @@ CSS;
      * Activate tutor agent - Main activation method
      */
     public function activate_tutor_agent( int $user_id, int $subscription_id ): void {
+        // Verify user exists first
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            error_log( "Darsna: User not found for ID: {$user_id}" );
+            return;
+        }
+        
         $tutor_data = $this->get_tutor_data( $user_id );
         if ( ! $tutor_data ) {
             error_log( "Darsna: No tutor data found for user ID: {$user_id}" );
@@ -810,10 +817,21 @@ CSS;
     private function get_existing_agent( int $user_id ) {
         global $wpdb;
         
-        return $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d",
-            $user_id
-        ) );
+        try {
+            $agent = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d",
+                $user_id
+            ) );
+            
+            if ( ! $agent ) {
+                error_log( "Darsna: No agent found for user ID: {$user_id}" );
+            }
+            
+            return $agent;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Database error getting agent for user {$user_id}: " . $e->getMessage() );
+            return null;
+        }
     }
     
     /**
@@ -1112,6 +1130,7 @@ CSS;
     private function get_tutor_data( int $user_id ): ?array {
         $order = $this->get_user_order( $user_id );
         if ( ! $order ) {
+            error_log( "Darsna: No order found for user ID: {$user_id}" );
             return null;
         }
         
@@ -1119,6 +1138,7 @@ CSS;
         $hourly_rate = $order->get_meta( '_tutor_hourly_rate' );
         
         if ( ! $service_id || ! $hourly_rate ) {
+            error_log( "Darsna: Missing tutor meta data for user {$user_id} - service_id: {$service_id}, rate: {$hourly_rate}" );
             return null;
         }
         
@@ -1145,7 +1165,8 @@ CSS;
         
         try {
             $agent = $this->get_existing_agent_by_id( $booking->agent_id );
-            if ( ! $agent || ! $agent->wp_user_id ) {
+            if ( ! $agent || ! isset( $agent->wp_user_id ) || ! $agent->wp_user_id ) {
+                error_log( "Darsna: No valid agent or wp_user_id for agent ID: {$booking->agent_id}" );
                 self::$cache[ $cache_key ] = false;
                 return $amount_for_service;
             }
@@ -1167,10 +1188,21 @@ CSS;
     private function get_existing_agent_by_id( int $agent_id ) {
         global $wpdb;
         
-        return $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-            $agent_id
-        ) );
+        try {
+            $agent = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+                $agent_id
+            ) );
+            
+            if ( ! $agent ) {
+                error_log( "Darsna: No agent found for agent ID: {$agent_id}" );
+            }
+            
+            return $agent;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Database error getting agent by ID {$agent_id}: " . $e->getMessage() );
+            return null;
+        }
     }
     
     /**
