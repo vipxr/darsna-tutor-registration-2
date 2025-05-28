@@ -1,599 +1,1205 @@
 <?php
 /**
  * Plugin Name: Tutor Registration for WooCommerce & LatePoint - Checkout
- * Version: 3.7.0
- * Description: Ultra-optimized tutor checkout with dynamic pricing and schedules
+ * Version: 4.0.0
+ * Description: Ultra-optimized tutor checkout with LatePoint v5 API integration
  * Requires PHP: 7.4
  * Author: Darsna
  * License: GPL v2 or later
  */
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
 
+/**
+ * Main plugin class - Optimized for LatePoint v5
+ */
 final class Darsna_Tutor_Checkout {
+    
     private static $instance;
     private static $cache = [];
     
-    private const REQUIRED = ['woocommerce/woocommerce.php', 'woocommerce-subscriptions/woocommerce-subscriptions.php', 'latepoint/latepoint.php'];
-    private const ACTIVE = ['active'];
-    private const INACTIVE = ['pending', 'on-hold', 'cancelled', 'expired', 'suspended', 'trash'];
-
+    // Constants for better maintainability
+    private const REQUIRED_PLUGINS = [
+        'woocommerce/woocommerce.php',
+        'woocommerce-subscriptions/woocommerce-subscriptions.php',
+        'latepoint/latepoint.php'
+    ];
+    
+    private const ACTIVE_STATUSES = ['active'];
+    private const INACTIVE_STATUSES = ['pending', 'on-hold', 'cancelled', 'expired', 'suspended', 'trash'];
+    
+    private const DEFAULT_SCHEDULE_DAYS = ['mon', 'tue', 'wed', 'thu', 'sun'];
+    private const DEFAULT_WORK_HOURS = ['start' => '09:00', 'end' => '17:00'];
+    
+    // Rate configuration
+    private const MIN_RATE = 5;
+    private const MAX_RATE = 50;
+    private const RATE_STEP = 5;
+    
+    /**
+     * Singleton instance
+     */
     public static function instance() {
         return self::$instance ??= new self();
     }
-
+    
+    /**
+     * Private constructor
+     */
     private function __construct() {
         add_action( 'init', [ $this, 'init' ] );
     }
-
-    public function init() {
-        if ( ! $this->check_deps() ) {
-            add_action( 'admin_notices', [ $this, 'show_notice' ] );
+    
+    /**
+     * Initialize plugin
+     */
+    public function init(): void {
+        if ( ! $this->check_dependencies() ) {
+            add_action( 'admin_notices', [ $this, 'show_dependency_notice' ] );
             return;
         }
-        $this->setup();
+        
+        $this->setup_hooks();
     }
-
-    public function show_notice() {
-        echo '<div class="notice notice-error"><p><strong>Tutor Registration:</strong> Missing WooCommerce, Subscriptions, or LatePoint</p></div>';
+    
+    /**
+     * Setup all WordPress hooks
+     */
+    private function setup_hooks(): void {
+        // Frontend hooks
+        add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+        add_action( 'woocommerce_after_checkout_billing_form', [ $this, 'render_tutor_fields' ] );
+        
+        // Checkout processing hooks
+        add_action( 'woocommerce_checkout_process', [ $this, 'validate_checkout' ] );
+        add_action( 'woocommerce_checkout_update_order_meta', [ $this, 'save_order_meta' ] );
+        
+        // Order status hooks
+        add_filter( 'woocommerce_cod_process_payment_order_status', [ $this, 'set_cod_hold_status' ] );
+        add_action( 'woocommerce_order_status_completed', [ $this, 'handle_order_completion' ] );
+        
+        // Subscription hooks
+        add_action( 'woocommerce_subscription_status_updated', [ $this, 'handle_subscription_status_change' ], 10, 3 );
+        
+        // User management hooks
+        add_action( 'delete_user', [ $this, 'handle_user_deletion' ] );
+        
+        // Menu customization
+        add_filter( 'wp_nav_menu_items', [ $this, 'customize_menu' ], 99, 2 );
+        
+        // LatePoint pricing hook
+        add_filter( 'latepoint_full_amount_for_service', [ $this, 'apply_dynamic_pricing' ], 10, 3 );
+        
+        // CRITICAL: Register the custom action hook
+        add_action( 'darsna_activate_agent', [ $this, 'activate_tutor_agent' ], 10, 2 );
     }
-
-    private function check_deps() {
-        if ( ! function_exists( 'is_plugin_active' ) ) require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        foreach ( self::REQUIRED as $plugin ) {
-            if ( ! is_plugin_active( $plugin ) ) return false;
+    
+    /**
+     * Check plugin dependencies
+     */
+    private function check_dependencies(): bool {
+        if ( ! function_exists( 'is_plugin_active' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
         }
+        
+        foreach ( self::REQUIRED_PLUGINS as $plugin ) {
+            if ( ! is_plugin_active( $plugin ) ) {
+                return false;
+            }
+        }
+        
         return true;
     }
-
-    private function setup() {
-        add_action( 'wp_enqueue_scripts', [ $this, 'assets' ] );
-        add_action( 'woocommerce_after_checkout_billing_form', [ $this, 'fields' ] );
-        add_action( 'woocommerce_checkout_process', [ $this, 'validate' ] );
-        add_action( 'woocommerce_checkout_update_order_meta', [ $this, 'save' ] );
-        
-        add_filter( 'woocommerce_cod_process_payment_order_status', [ $this, 'cod_hold' ] );
-        add_action( 'woocommerce_order_status_completed', [ $this, 'complete' ] );
-        add_action( 'woocommerce_subscription_status_updated', [ $this, 'status' ], 10, 3 );
-        
-        add_action( 'delete_user', [ $this, 'user_deleted' ] );
-        add_filter( 'wp_nav_menu_items', [ $this, 'menu' ], 99, 2 );
-        
-        add_filter( 'latepoint_full_amount_for_service', [ $this, 'pricing' ], 10, 3 );
-        add_action( 'darsna_activate_agent', [ $this, 'activate' ], 10, 2 );
+    
+    /**
+     * Show dependency notice
+     */
+    public function show_dependency_notice(): void {
+        printf(
+            '<div class="notice notice-error"><p><strong>%s:</strong> %s</p></div>',
+            esc_html__( 'Tutor Registration', 'darsna' ),
+            esc_html__( 'Missing required plugins: WooCommerce, WooCommerce Subscriptions, or LatePoint', 'darsna' )
+        );
     }
-
-    public function cod_hold() {
+    
+    /**
+     * Set COD orders to hold status
+     */
+    public function set_cod_hold_status(): string {
         return 'on-hold';
     }
-
-    public function user_deleted( $user_id ) {
-        $this->sync( $user_id, 'disabled' );
+    
+    /**
+     * Handle user deletion
+     */
+    public function handle_user_deletion( int $user_id ): void {
+        $this->sync_agent_status( $user_id, 'disabled' );
     }
-
-    public function assets() {
-        if ( ! is_checkout() ) return;
+    
+    /**
+     * Enqueue frontend assets
+     */
+    public function enqueue_assets(): void {
+        if ( ! is_checkout() ) {
+            return;
+        }
         
-        $js = <<<'JS'
-jQuery(function($) {
-    $('#billing_phone').attr('placeholder', '+96512345678').on('input', function() {
-        var v = $(this).val().replace(/[^\d+]/g, '');
-        $(this).val(v && !v.startsWith('+') ? '+' + v : v);
-    });
-    
-    $('#tutor_bio').after('<div id="c">0/500</div>').on('input', function() {
-        var l = $(this).val().length;
-        $('#c').text(l + '/500').css('color', l > 500 ? 'red' : '#666');
-    });
-    
-    $('.day').change(function() {
-        $('.times')[$('.day:checked').length ? 'show' : 'hide']();
-    });
-    
-    $('.times').show(); // Show by default since days are pre-checked
-});
-JS;
-
+        // Inline JavaScript for enhanced UX
+        $js = $this->get_checkout_javascript();
         wp_add_inline_script( 'jquery', $js );
         
-        $css = <<<'CSS'
-.tutor{background:#f9f9f9;border:1px solid #e1e1e1;border-radius:8px;padding:20px;margin:20px 0}
-.tutor h3{margin-top:0;color:#0073aa;border-bottom:2px solid #0073aa;padding-bottom:10px}
-.row{display:flex;gap:20px;margin-bottom:15px}.row .form-row{flex:1}
-#tutor_service,#tutor_hourly_rate,#tutor_bio{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
-#tutor_bio{min-height:80px;resize:vertical}#c{font-size:12px;color:#666;margin-top:5px}
-.sched{margin-top:15px;padding-top:15px;border-top:1px solid #ddd}
-.days{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin:10px 0}
-.day-item{display:flex;align-items:center;gap:5px;font-size:13px}
-.times{margin-top:15px}.time-row{display:flex;gap:15px;align-items:center}
-.time-row input{padding:8px;border:1px solid #ddd;border-radius:4px;width:120px}
-CSS;
-
+        // Inline CSS for modern styling
+        $css = $this->get_checkout_styles();
         wp_add_inline_style( 'woocommerce-general', $css );
     }
+    
+    /**
+     * Get optimized checkout JavaScript
+     */
+    private function get_checkout_javascript(): string {
+        return <<<'JS'
+jQuery(function($) {
+    const $phoneField = $('#billing_phone');
+    const $bioField = $('#tutor_bio');
+    const $dayCheckboxes = $('.day');
+    const $timesContainer = $('.times');
+    
+    // Enhanced phone number formatting with Jordan country code support
+    $phoneField.attr('placeholder', '+962xxxxxxxxx').on('input', function() {
+        let value = $(this).val().replace(/[^\d+]/g, '');
+        
+        // Auto-add Jordan country code if no country code present
+        if (value && !value.startsWith('+')) {
+            value = value.startsWith('962') ? '+' + value : '+962' + value;
+        }
+        
+        $(this).val(value);
+    });
+    
+    // Bio character counter with better UX
+    if ($bioField.length) {
+        const $counter = $('<div id="bio-counter" class="char-counter">0/500</div>');
+        $bioField.after($counter);
+        
+        $bioField.on('input', function() {
+            const length = $(this).val().length;
+            const isOverLimit = length > 500;
+            
+            $counter.text(`${length}/500`)
+                   .toggleClass('over-limit', isOverLimit)
+                   .css('color', isOverLimit ? '#dc3232' : '#666');
+        });
+    }
+    
+    // Dynamic schedule visibility with smooth animations
+    function toggleScheduleTimes() {
+        const hasSelectedDays = $dayCheckboxes.filter(':checked').length > 0;
+        $timesContainer.toggle(hasSelectedDays);
+    }
+    
+    $dayCheckboxes.on('change', toggleScheduleTimes);
+    
+    // Initialize on page load
+    toggleScheduleTimes();
+});
+JS;
+    }
+    
+    /**
+     * Get modern checkout styles
+     */
+    private function get_checkout_styles(): string {
+        return <<<'CSS'
+.tutor {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    border: 1px solid #e1e5e9;
+    border-radius: 12px;
+    padding: 30px;
+    margin: 30px 0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
 
-    public function fields( $checkout ) {
-        $services = $this->services();
-        $service_opts = [ '' => 'Select subject...' ];
-        foreach ( $services as $s ) $service_opts[ $s->id ] = $s->name;
-        if ( !$services ) $service_opts[''] = 'No subjects available';
+.tutor:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
 
-        $rate_opts = [ '' => 'Select rate...' ];
-        $sym = get_woocommerce_currency_symbol();
-        for ( $i = 5; $i <= 50; $i += 5 ) $rate_opts[ $i ] = $sym . $i . '/hr';
+.tutor h3 {
+    margin-top: 0;
+    color: #2c3e50;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 12px;
+    font-size: 1.4em;
+    font-weight: 600;
+}
 
-        echo '<div class="tutor"><h3>Tutor Information</h3><div class="row">';
+.row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
 
-        woocommerce_form_field( 'tutor_service', [
-            'type' => 'select', 'class' => ['form-row-first'], 'label' => 'Subject', 'required' => true, 'options' => $service_opts
-        ], $checkout->get_value( 'tutor_service' ) );
+.row .form-row {
+    flex: 1;
+    min-width: 250px;
+}
 
-        woocommerce_form_field( 'tutor_hourly_rate', [
-            'type' => 'select', 'class' => ['form-row-last'], 'label' => 'Rate', 'required' => true, 'options' => $rate_opts
-        ], $checkout->get_value( 'tutor_hourly_rate' ) );
+#tutor_service, #tutor_hourly_rate, #tutor_bio {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
 
+#tutor_service:focus, #tutor_hourly_rate:focus, #tutor_bio:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+    outline: none;
+}
+
+#tutor_bio {
+    min-height: 100px;
+    resize: vertical;
+    font-family: inherit;
+}
+
+.char-counter {
+    font-size: 12px;
+    color: #666;
+    margin-top: 8px;
+    text-align: right;
+    transition: color 0.3s ease;
+}
+
+.char-counter.over-limit {
+    color: #dc3232;
+    font-weight: 600;
+}
+
+.sched {
+    margin-top: 25px;
+    padding-top: 25px;
+    border-top: 2px solid #ecf0f1;
+}
+
+.sched h4 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 1.2em;
+}
+
+.days {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 12px;
+    margin: 15px 0;
+}
+
+.day-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: #ffffff;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.day-item:hover {
+    border-color: #3498db;
+    background: #f8f9ff;
+}
+
+.day-item input[type="checkbox"]:checked + label {
+    font-weight: 600;
+    color: #3498db;
+}
+
+.times {
+    margin-top: 20px;
+    padding: 20px;
+    background: #ffffff;
+    border: 2px solid #e1e5e9;
+    border-radius: 8px;
+}
+
+.time-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.time-row label {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-right: 10px;
+}
+
+.time-row input[type="time"] {
+    padding: 10px 12px;
+    border: 2px solid #e1e5e9;
+    border-radius: 6px;
+    font-size: 16px;
+    min-width: 140px;
+    transition: all 0.3s ease;
+}
+
+.time-row input[type="time"]:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+@media (max-width: 768px) {
+    .row {
+        flex-direction: column;
+    }
+    
+    .days {
+        grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    }
+    
+    .time-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .time-row input[type="time"] {
+        min-width: auto;
+    }
+}
+CSS;
+    }
+    
+    /**
+     * Render tutor fields on checkout
+     */
+    public function render_tutor_fields( $checkout ): void {
+        $services = $this->get_services();
+        $service_options = $this->build_service_options( $services );
+        $rate_options = $this->build_rate_options();
+        
+        echo '<div class="tutor">';
+        echo '<h3>' . esc_html__( 'Tutor Information', 'darsna' ) . '</h3>';
+        
+        // Service and Rate row
+        echo '<div class="row">';
+        $this->render_service_field( $checkout, $service_options );
+        $this->render_rate_field( $checkout, $rate_options );
         echo '</div>';
-
+        
+        // Bio field
+        $this->render_bio_field( $checkout );
+        
+        // Schedule section
+        $this->render_schedule_section( $checkout );
+        
+        echo '</div>';
+    }
+    
+    /**
+     * Build service options array
+     */
+    private function build_service_options( array $services ): array {
+        if ( empty( $services ) ) {
+            return [ '' => __( 'No subjects available', 'darsna' ) ];
+        }
+        
+        $options = [ '' => __( 'Select subject...', 'darsna' ) ];
+        foreach ( $services as $service ) {
+            $options[ $service->id ] = esc_html( $service->name );
+        }
+        
+        return $options;
+    }
+    
+    /**
+     * Build rate options array
+     */
+    private function build_rate_options(): array {
+        $options = [ '' => __( 'Select rate...', 'darsna' ) ];
+        $currency_symbol = get_woocommerce_currency_symbol();
+        
+        for ( $rate = self::MIN_RATE; $rate <= self::MAX_RATE; $rate += self::RATE_STEP ) {
+            $options[ $rate ] = sprintf( '%s%d/hr', $currency_symbol, $rate );
+        }
+        
+        return $options;
+    }
+    
+    /**
+     * Render service field
+     */
+    private function render_service_field( $checkout, array $options ): void {
+        woocommerce_form_field( 'tutor_service', [
+            'type' => 'select',
+            'class' => [ 'form-row-first' ],
+            'label' => __( 'Subject', 'darsna' ),
+            'required' => true,
+            'options' => $options
+        ], $checkout->get_value( 'tutor_service' ) );
+    }
+    
+    /**
+     * Render rate field
+     */
+    private function render_rate_field( $checkout, array $options ): void {
+        woocommerce_form_field( 'tutor_hourly_rate', [
+            'type' => 'select',
+            'class' => [ 'form-row-last' ],
+            'label' => __( 'Hourly Rate', 'darsna' ),
+            'required' => true,
+            'options' => $options
+        ], $checkout->get_value( 'tutor_hourly_rate' ) );
+    }
+    
+    /**
+     * Render bio field
+     */
+    private function render_bio_field( $checkout ): void {
         woocommerce_form_field( 'tutor_bio', [
-            'type' => 'textarea', 'class' => ['form-row-wide'], 'label' => 'Bio', 
-            'placeholder' => 'Teaching background and specialties...', 'custom_attributes' => ['maxlength' => '500', 'rows' => '4']
+            'type' => 'textarea',
+            'class' => [ 'form-row-wide' ],
+            'label' => __( 'Teaching Background & Bio', 'darsna' ),
+            'placeholder' => __( 'Tell students about your teaching experience, qualifications, and specialties...', 'darsna' ),
+            'custom_attributes' => [
+                'maxlength' => '500',
+                'rows' => '5'
+            ]
         ], $checkout->get_value( 'tutor_bio' ) );
-
-        echo '<div class="sched"><h4>Availability</h4><p style="font-size:13px;color:#666">Set your teaching hours</p><div class="days">';
-        
-        $days = ['mon'=>'M', 'tue'=>'T', 'wed'=>'W', 'thu'=>'T', 'fri'=>'F', 'sat'=>'S', 'sun'=>'S'];
-        $default_days = ['mon', 'tue', 'wed', 'thu', 'sun']; // All except Fri & Sat
-        
-        foreach ( $days as $k => $l ) {
-            $checked_val = $checkout->get_value( 'schedule_' . $k );
-            $is_checked = $checked_val !== null ? $checked_val : in_array( $k, $default_days );
-            $c = $is_checked ? 'checked' : '';
-            echo "<div class=\"day-item\"><input type=\"checkbox\" id=\"s{$k}\" name=\"schedule_{$k}\" value=\"1\" class=\"day\" {$c}><label for=\"s{$k}\">{$l}</label></div>";
-        }
-        
-        echo '</div><div class="times"><div class="time-row">
-            <label>From:</label><input type="time" name="schedule_start" value="' . esc_attr( $checkout->get_value( 'schedule_start' ) ?: '09:00' ) . '">
-            <label>To:</label><input type="time" name="schedule_end" value="' . esc_attr( $checkout->get_value( 'schedule_end' ) ?: '17:00' ) . '">
-        </div></div></div></div>';
     }
-
-    public function validate() {
-        if ( !$_POST['tutor_service'] ) wc_add_notice( 'Subject required', 'error' );
-        if ( !$_POST['tutor_hourly_rate'] ) wc_add_notice( 'Rate required', 'error' );
+    
+    /**
+     * Render schedule section
+     */
+    private function render_schedule_section( $checkout ): void {
+        echo '<div class="sched">';
+        echo '<h4>' . esc_html__( 'Weekly Availability', 'darsna' ) . '</h4>';
+        echo '<p style="font-size:14px;color:#666;margin-bottom:15px;">' . 
+             esc_html__( 'Select the days you want to teach and set your preferred hours', 'darsna' ) . '</p>';
         
-        $rate = (int)$_POST['tutor_hourly_rate'];
-        if ( $rate < 5 || $rate > 50 || $rate % 5 ) wc_add_notice( 'Invalid rate', 'error' );
+        $this->render_day_checkboxes( $checkout );
+        $this->render_time_inputs( $checkout );
         
-        if ( $_POST['tutor_bio'] && strlen($_POST['tutor_bio']) > 500 ) wc_add_notice( 'Bio too long', 'error' );
-        
-        if ( $_POST['schedule_start'] && $_POST['schedule_end'] && $_POST['schedule_start'] >= $_POST['schedule_end'] ) {
-            wc_add_notice( 'End time must be after start time', 'error' );
-        }
+        echo '</div>';
     }
-
-    public function save( $order_id ) {
-        update_post_meta( $order_id, '_tutor_service_id', sanitize_text_field( $_POST['tutor_service'] ?? '' ) );
-        update_post_meta( $order_id, '_tutor_hourly_rate', sanitize_text_field( $_POST['tutor_hourly_rate'] ?? '' ) );
-        update_post_meta( $order_id, '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ?? '' ) );
-
-        $sched = [];
-        $has_days = false;
-        foreach ( ['mon','tue','wed','thu','fri','sat','sun'] as $d ) {
-            if ( $_POST["schedule_{$d}"] ?? false ) {
-                $sched[$d] = 1;
-                $has_days = true;
-            }
-        }
-        
-        // If no days selected, use default (all except Fri & Sat)
-        if ( ! $has_days ) {
-            foreach ( ['mon','tue','wed','thu','sun'] as $d ) {
-                $sched[$d] = 1;
-            }
-        }
-        
-        $sched['start'] = sanitize_text_field( $_POST['schedule_start'] ?? '09:00' );
-        $sched['end'] = sanitize_text_field( $_POST['schedule_end'] ?? '17:00' );
-        update_post_meta( $order_id, '_tutor_schedule', $sched );
-    }
-
-    public function complete( $order_id ) {
-        $order = wc_get_order( $order_id );
-        if ( !$order || !function_exists('wcs_get_subscriptions_for_order') ) return;
-        
-        foreach ( wcs_get_subscriptions_for_order( $order ) as $sub ) {
-            $uid = $sub->get_user_id();
-            $sub_id = $sub->get_id();
-            
-            // Direct call for immediate processing (testing)
-            // Remove comment to test without cron dependency
-            // $this->activate( $uid, $sub_id );
-            
-            // Scheduled call (production) - uses Action Scheduler if available
-            if ( function_exists( 'as_schedule_single_action' ) ) {
-                as_schedule_single_action( time() + 5, 'darsna_activate_agent', [ $uid, $sub_id ] );
-            } else {
-                wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $uid, $sub_id ] );
-            }
-        }
-    }
-
-    public function status( $sub, $new, $old ) {
-        if ( $new === $old ) return;
-        
-        $uid = $sub->get_user_id();
-        if ( !$uid ) return;
-
-        if ( in_array( $new, self::ACTIVE ) ) {
-            $parent = $sub->get_parent_id() ? wc_get_order( $sub->get_parent_id() ) : null;
-            if ( $parent && $parent->get_status() === 'completed' ) {
-                // Use Action Scheduler if available, otherwise wp_cron
-                if ( function_exists( 'as_schedule_single_action' ) ) {
-                    as_schedule_single_action( time() + 5, 'darsna_activate_agent', [ $uid, $sub->get_id() ] );
-                } else {
-                    wp_schedule_single_event( time() + 5, 'darsna_activate_agent', [ $uid, $sub->get_id() ] );
-                }
-            } else {
-                $sub->update_status( 'on-hold', 'Pending approval' );
-            }
-        } elseif ( in_array( $new, self::INACTIVE ) ) {
-            $this->deactivate( $uid );
-        }
-    }
-
-    public function activate( $user_id, $sub_id ) {
-        $data = $this->get_data( $user_id );
-        if ( !$data ) return;
-
-        $meta = [
-            '_darsna_account_type' => 'tutor',
-            '_darsna_subscription_active' => 'yes',
-            '_darsna_subscription_id' => $sub_id,
-            '_darsna_tutor_service_id' => $data['service_id'],
-            '_darsna_tutor_hourly_rate' => $data['hourly_rate'],
-            '_darsna_tutor_bio' => $data['bio']
+    
+    /**
+     * Render day checkboxes
+     */
+    private function render_day_checkboxes( $checkout ): void {
+        $days = [
+            'mon' => __( 'Mon', 'darsna' ),
+            'tue' => __( 'Tue', 'darsna' ),
+            'wed' => __( 'Wed', 'darsna' ),
+            'thu' => __( 'Thu', 'darsna' ),
+            'fri' => __( 'Fri', 'darsna' ),
+            'sat' => __( 'Sat', 'darsna' ),
+            'sun' => __( 'Sun', 'darsna' )
         ];
         
-        foreach ( $meta as $k => $v ) update_user_meta( $user_id, $k, $v );
-        wp_update_user( ['ID' => $user_id, 'role' => 'latepoint_agent'] );
+        echo '<div class="days">';
         
-        if ( $this->sync( $user_id, 'active' ) ) {
-            $this->assign_service( $user_id, $data['service_id'] );
-            if ( $data['schedule'] ) $this->set_schedule( $user_id, $data['schedule'] );
+        foreach ( $days as $key => $label ) {
+            $checked_value = $checkout->get_value( "schedule_{$key}" );
+            $is_checked = $checked_value !== null ? $checked_value : in_array( $key, self::DEFAULT_SCHEDULE_DAYS );
+            $checked = $is_checked ? 'checked' : '';
+            
+            printf(
+                '<div class="day-item">
+                    <input type="checkbox" id="schedule_%1$s" name="schedule_%1$s" value="1" class="day" %3$s>
+                    <label for="schedule_%1$s">%2$s</label>
+                </div>',
+                esc_attr( $key ),
+                esc_html( $label ),
+                $checked
+            );
+        }
+        
+        echo '</div>';
+    }
+    
+    /**
+     * Render time inputs
+     */
+    private function render_time_inputs( $checkout ): void {
+        $start_time = $checkout->get_value( 'schedule_start' ) ?: self::DEFAULT_WORK_HOURS['start'];
+        $end_time = $checkout->get_value( 'schedule_end' ) ?: self::DEFAULT_WORK_HOURS['end'];
+        
+        printf(
+            '<div class="times">
+                <div class="time-row">
+                    <label>%s</label>
+                    <input type="time" name="schedule_start" value="%s" required>
+                    <label>%s</label>
+                    <input type="time" name="schedule_end" value="%s" required>
+                </div>
+            </div>',
+            esc_html__( 'Available from:', 'darsna' ),
+            esc_attr( $start_time ),
+            esc_html__( 'Available until:', 'darsna' ),
+            esc_attr( $end_time )
+        );
+    }
+    
+    /**
+     * Validate checkout form
+     */
+    public function validate_checkout(): void {
+        $errors = [];
+        
+        // Validate service selection
+        if ( empty( $_POST['tutor_service'] ) ) {
+            $errors[] = __( 'Please select a subject to teach', 'darsna' );
+        }
+        
+        // Validate hourly rate
+        $rate = (int) ( $_POST['tutor_hourly_rate'] ?? 0 );
+        if ( empty( $_POST['tutor_hourly_rate'] ) ) {
+            $errors[] = __( 'Please select your hourly rate', 'darsna' );
+        } elseif ( $rate < self::MIN_RATE || $rate > self::MAX_RATE || $rate % self::RATE_STEP !== 0 ) {
+            $errors[] = sprintf( 
+                __( 'Invalid hourly rate. Must be between %d and %d in increments of %d', 'darsna' ),
+                self::MIN_RATE,
+                self::MAX_RATE,
+                self::RATE_STEP
+            );
+        }
+        
+        // Validate bio length
+        $bio = $_POST['tutor_bio'] ?? '';
+        if ( ! empty( $bio ) && strlen( $bio ) > 500 ) {
+            $errors[] = __( 'Bio must be 500 characters or less', 'darsna' );
+        }
+        
+        // Validate schedule times
+        $start_time = $_POST['schedule_start'] ?? '';
+        $end_time = $_POST['schedule_end'] ?? '';
+        
+        if ( ! empty( $start_time ) && ! empty( $end_time ) && $start_time >= $end_time ) {
+            $errors[] = __( 'End time must be after start time', 'darsna' );
+        }
+        
+        // Add all errors to WooCommerce
+        foreach ( $errors as $error ) {
+            wc_add_notice( $error, 'error' );
         }
     }
-
-    private function deactivate( $user_id ) {
-        update_user_meta( $user_id, '_darsna_subscription_active', 'no' );
-        wp_update_user( ['ID' => $user_id, 'role' => 'customer'] );
-        $this->sync( $user_id, 'disabled' );
-    }
-
-    private function sync( $user_id, $status = 'active' ) {
-        $user = get_userdata( $user_id );
-        if ( !$user ) return false;
-
-        $model = $this->get_agent_model();
-        $agents = null;
+    
+    /**
+     * Save order meta data
+     */
+    public function save_order_meta( int $order_id ): void {
+        $meta_data = [
+            '_tutor_service_id' => sanitize_text_field( $_POST['tutor_service'] ?? '' ),
+            '_tutor_hourly_rate' => (int) ( $_POST['tutor_hourly_rate'] ?? 0 ),
+            '_tutor_bio' => sanitize_textarea_field( $_POST['tutor_bio'] ?? '' )
+        ];
         
-        // Try to get existing agents if model is available
-        if ( $model ) {
-            $agents = $model->where(['wp_user_id' => $user_id])->get_results();
+        // Save basic meta
+        foreach ( $meta_data as $key => $value ) {
+            update_post_meta( $order_id, $key, $value );
         }
-
-        if ( $agents ) {
-            // Update existing agent using model
-            $agent = $agents[0];
-            $update = $this->get_agent_model();
-            if ( method_exists($update, 'load_by_id') ) {
-                $update->load_by_id( $agent->id );
-            } else {
-                $update->id = $agent->id;
-                foreach ( (array)$agent as $k => $v ) $update->set_data( $k, $v );
+        
+        // Save schedule data
+        $schedule = $this->process_schedule_data();
+        update_post_meta( $order_id, '_tutor_schedule', $schedule );
+    }
+    
+    /**
+     * Process and validate schedule data
+     */
+    private function process_schedule_data(): array {
+        $schedule = [];
+        $has_selected_days = false;
+        
+        // Process day selections
+        $days = [ 'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun' ];
+        foreach ( $days as $day ) {
+            if ( ! empty( $_POST["schedule_{$day}"] ) ) {
+                $schedule[ $day ] = 1;
+                $has_selected_days = true;
             }
-            $update->set_data( 'status', $status );
-            return $update->save();
-        } elseif ( $status === 'active' ) {
-            // Create new agent (will use model if available, otherwise DB fallback)
-            return $this->create_agent( $user );
+        }
+        
+        // Use default days if none selected
+        if ( ! $has_selected_days ) {
+            foreach ( self::DEFAULT_SCHEDULE_DAYS as $day ) {
+                $schedule[ $day ] = 1;
+            }
+        }
+        
+        // Add time information
+        $schedule['start'] = sanitize_text_field( $_POST['schedule_start'] ?? self::DEFAULT_WORK_HOURS['start'] );
+        $schedule['end'] = sanitize_text_field( $_POST['schedule_end'] ?? self::DEFAULT_WORK_HOURS['end'] );
+        
+        return $schedule;
+    }
+    
+    /**
+     * Handle order completion
+     */
+    public function handle_order_completion( int $order_id ): void {
+        $order = wc_get_order( $order_id );
+        if ( ! $order || ! function_exists( 'wcs_get_subscriptions_for_order' ) ) {
+            return;
+        }
+        
+        foreach ( wcs_get_subscriptions_for_order( $order ) as $subscription ) {
+            $user_id = $subscription->get_user_id();
+            $subscription_id = $subscription->get_id();
+            
+            if ( ! $user_id ) {
+                continue;
+            }
+            
+            // Schedule agent activation using Action Scheduler (preferred) or wp_cron
+            $this->schedule_agent_activation( $user_id, $subscription_id );
+        }
+    }
+    
+    /**
+     * Schedule agent activation
+     */
+    private function schedule_agent_activation( int $user_id, int $subscription_id ): void {
+        $delay = 5; // seconds
+        
+        if ( function_exists( 'as_schedule_single_action' ) ) {
+            // Use Action Scheduler if available (WooCommerce default)
+            as_schedule_single_action( time() + $delay, 'darsna_activate_agent', [ $user_id, $subscription_id ] );
+        } else {
+            // Fallback to WordPress cron
+            wp_schedule_single_event( time() + $delay, 'darsna_activate_agent', [ $user_id, $subscription_id ] );
+        }
+    }
+    
+    /**
+     * Handle subscription status changes
+     */
+    public function handle_subscription_status_change( $subscription, string $new_status, string $old_status ): void {
+        if ( $new_status === $old_status ) {
+            return;
+        }
+        
+        $user_id = $subscription->get_user_id();
+        if ( ! $user_id ) {
+            return;
+        }
+        
+        if ( in_array( $new_status, self::ACTIVE_STATUSES, true ) ) {
+            $this->handle_subscription_activation( $subscription, $user_id );
+        } elseif ( in_array( $new_status, self::INACTIVE_STATUSES, true ) ) {
+            $this->deactivate_tutor_agent( $user_id );
+        }
+    }
+    
+    /**
+     * Handle subscription activation
+     */
+    private function handle_subscription_activation( $subscription, int $user_id ): void {
+        $parent_order = $subscription->get_parent_id() ? wc_get_order( $subscription->get_parent_id() ) : null;
+        
+        if ( $parent_order && $parent_order->get_status() === 'completed' ) {
+            $this->schedule_agent_activation( $user_id, $subscription->get_id() );
+        } else {
+            $subscription->update_status( 'on-hold', __( 'Pending payment verification', 'darsna' ) );
+        }
+    }
+    
+    /**
+     * Activate tutor agent - Main activation method
+     */
+    public function activate_tutor_agent( int $user_id, int $subscription_id ): void {
+        $tutor_data = $this->get_tutor_data( $user_id );
+        if ( ! $tutor_data ) {
+            error_log( "Darsna: No tutor data found for user ID: {$user_id}" );
+            return;
+        }
+        
+        try {
+            // Update user meta
+            $this->update_user_meta( $user_id, $subscription_id, $tutor_data );
+            
+            // Update user role
+            wp_update_user( [ 'ID' => $user_id, 'role' => 'latepoint_agent' ] );
+            
+            // Sync with LatePoint
+            if ( $this->sync_agent_status( $user_id, 'active' ) ) {
+                $this->assign_service_to_agent( $user_id, $tutor_data['service_id'] );
+                
+                if ( ! empty( $tutor_data['schedule'] ) ) {
+                    $this->set_agent_schedule( $user_id, $tutor_data['schedule'] );
+                }
+                
+                do_action( 'darsna_tutor_activated', $user_id, $subscription_id, $tutor_data );
+                error_log( "Darsna: Successfully activated tutor agent for user ID: {$user_id}" );
+            } else {
+                error_log( "Darsna: Failed to sync agent status for user ID: {$user_id}" );
+            }
+            
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error activating tutor agent for user {$user_id}: " . $e->getMessage() );
+        }
+    }
+    
+    /**
+     * Update user meta with tutor information
+     */
+    private function update_user_meta( int $user_id, int $subscription_id, array $tutor_data ): void {
+        $meta_updates = [
+            '_darsna_account_type' => 'tutor',
+            '_darsna_subscription_active' => 'yes',
+            '_darsna_subscription_id' => $subscription_id,
+            '_darsna_tutor_service_id' => $tutor_data['service_id'],
+            '_darsna_tutor_hourly_rate' => $tutor_data['hourly_rate'],
+            '_darsna_tutor_bio' => $tutor_data['bio']
+        ];
+        
+        foreach ( $meta_updates as $key => $value ) {
+            update_user_meta( $user_id, $key, $value );
+        }
+    }
+    
+    /**
+     * Deactivate tutor agent
+     */
+    private function deactivate_tutor_agent( int $user_id ): void {
+        update_user_meta( $user_id, '_darsna_subscription_active', 'no' );
+        wp_update_user( [ 'ID' => $user_id, 'role' => 'customer' ] );
+        $this->sync_agent_status( $user_id, 'disabled' );
+        
+        do_action( 'darsna_tutor_deactivated', $user_id );
+    }
+    
+    /**
+     * Sync agent status with LatePoint - Optimized for v5
+     */
+    private function sync_agent_status( int $user_id, string $status = 'active' ): bool {
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return false;
+        }
+        
+        try {
+            $existing_agent = $this->get_existing_agent( $user_id );
+            
+            if ( $existing_agent ) {
+                return $this->update_existing_agent( $existing_agent->id, $status );
+            } elseif ( $status === 'active' ) {
+                return $this->create_new_agent( $user );
+            }
+            
+            return true;
+            
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error syncing agent status: " . $e->getMessage() );
+            return false;
+        }
+    }
+    
+    /**
+     * Get existing agent by user ID
+     */
+    private function get_existing_agent( int $user_id ) {
+        global $wpdb;
+        
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d",
+            $user_id
+        ) );
+    }
+    
+    /**
+     * Update existing agent status
+     */
+    private function update_existing_agent( int $agent_id, string $status ): bool {
+        global $wpdb;
+        
+        return $wpdb->update(
+            $wpdb->prefix . 'latepoint_agents',
+            [ 'status' => $status, 'updated_at' => current_time( 'mysql' ) ],
+            [ 'id' => $agent_id ],
+            [ '%s', '%s' ],
+            [ '%d' ]
+        ) !== false;
+    }
+    
+    /**
+     * Create new agent - Optimized with better error handling
+     */
+    private function create_new_agent( WP_User $user ): bool {
+        $order = $this->get_user_order( $user->ID );
+        $bio = get_user_meta( $user->ID, '_darsna_tutor_bio', true );
+        
+        // Get user names with fallbacks
+        $names = $this->extract_user_names( $user, $order );
+        
+        $agent_data = [
+            'first_name' => $names['first'],
+            'last_name' => $names['last'],
+            'display_name' => $user->display_name,
+            'email' => $user->user_email,
+            'phone' => $order ? $this->format_phone( $order->get_billing_phone() ) : '',
+            'wp_user_id' => $user->ID,
+            'status' => 'active',
+            'bio' => $bio ? sanitize_textarea_field( $bio ) : '',
+            'created_at' => current_time( 'mysql' ),
+            'updated_at' => current_time( 'mysql' )
+        ];
+        
+        // Try LatePoint v5 Repository first, then fallback
+        return $this->create_agent_with_fallback( $agent_data );
+    }
+    
+    /**
+     * Extract user names with proper fallbacks
+     */
+    private function extract_user_names( WP_User $user, $order ): array {
+        $first_name = $user->first_name ?: ( $order ? $order->get_billing_first_name() : '' );
+        $last_name = $user->last_name ?: ( $order ? $order->get_billing_last_name() : '' );
+        
+        // Fallback to display name parsing
+        if ( ! $first_name || ! $last_name ) {
+            $name_parts = explode( ' ', $user->display_name, 2 );
+            $first_name = $first_name ?: ( $name_parts[0] ?? 'User' );
+            $last_name = $last_name ?: ( $name_parts[1] ?? '' );
+        }
+        
+        return [
+            'first' => sanitize_text_field( $first_name ),
+            'last' => sanitize_text_field( $last_name )
+        ];
+    }
+    
+    /**
+     * Create agent with v5 Repository fallback
+     */
+    private function create_agent_with_fallback( array $agent_data ): bool {
+        // Try LatePoint v5 Repository API first
+        if ( class_exists( '\LatePoint\App\Repositories\AgentRepository' ) ) {
+            try {
+                $agent = \LatePoint\App\Repositories\AgentRepository::create( $agent_data );
+                return $agent && isset( $agent->id );
+            } catch ( Exception $e ) {
+                error_log( "Darsna: LatePoint v5 Repository failed: " . $e->getMessage() );
+            }
+        }
+        
+        // Fallback to direct database insert
+        return $this->insert_agent_directly( $agent_data );
+    }
+    
+    /**
+     * Insert agent directly into database
+     */
+    private function insert_agent_directly( array $agent_data ): bool {
+        global $wpdb;
+        
+        // Check for existing agent with same email
+        $existing = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}latepoint_agents WHERE email = %s",
+            $agent_data['email']
+        ) );
+        
+        if ( $existing ) {
+            // Update existing agent
+            return $wpdb->update(
+                $wpdb->prefix . 'latepoint_agents',
+                $agent_data,
+                [ 'id' => $existing ],
+                null,
+                [ '%d' ]
+            ) !== false;
+        }
+        
+        // Insert new agent
+        return $wpdb->insert(
+            $wpdb->prefix . 'latepoint_agents',
+            $agent_data
+        ) !== false;
+    }
+    
+    /**
+     * Assign service to agent - FIXED table name
+     */
+    private function assign_service_to_agent( int $user_id, $service_id ): bool {
+        if ( ! $service_id ) {
+            return false;
+        }
+        
+        $agent = $this->get_existing_agent( $user_id );
+        if ( ! $agent ) {
+            return false;
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'latepoint_agents_services'; // FIXED: was latepoint_agent_services
+        
+        // Check if assignment already exists
+        $exists = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$table} WHERE agent_id = %d AND service_id = %d",
+            $agent->id,
+            $service_id
+        ) );
+        
+        if ( $exists ) {
+            return true; // Already assigned
+        }
+        
+        // Try v5 Repository first
+        if ( class_exists( '\LatePoint\App\Repositories\AgentServiceRepository' ) ) {
+            try {
+                $assignment = \LatePoint\App\Repositories\AgentServiceRepository::create( [
+                    'agent_id' => (int) $agent->id,
+                    'service_id' => (int) $service_id,
+                    'location_id' => 1, // Default location
+                    'is_custom_hours' => 0,
+                    'is_custom_price' => 0,
+                    'is_custom_duration' => 0,
+                    'created_at' => current_time( 'mysql' ),
+                    'updated_at' => current_time( 'mysql' )
+                ] );
+                
+                return $assignment && isset( $assignment->id );
+            } catch ( Exception $e ) {
+                error_log( "Darsna: AgentService Repository failed: " . $e->getMessage() );
+            }
+        }
+        
+        // Fallback to direct database insert
+        return $wpdb->insert( $table, [
+            'agent_id' => (int) $agent->id,
+            'service_id' => (int) $service_id,
+            'location_id' => 1,
+            'is_custom_hours' => 0,
+            'is_custom_price' => 0,
+            'is_custom_duration' => 0,
+            'created_at' => current_time( 'mysql' ),
+            'updated_at' => current_time( 'mysql' )
+        ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s' ] ) !== false;
+    }
+    
+    /**
+     * Set agent schedule
+     */
+    private function set_agent_schedule( int $user_id, array $schedule ): bool {
+        if ( empty( $schedule ) ) {
+            return false;
+        }
+        
+        $agent = $this->get_existing_agent( $user_id );
+        if ( ! $agent ) {
+            return false;
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'latepoint_work_periods';
+        
+        // Clear existing schedule
+        $wpdb->delete( $table, [ 'agent_id' => $agent->id ], [ '%d' ] );
+        
+        // Day mapping
+        $day_map = [
+            'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
+            'fri' => 5, 'sat' => 6, 'sun' => 7
+        ];
+        
+        $start_time = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
+        $end_time = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
+        
+        // Insert new schedule
+        foreach ( $day_map as $day => $day_number ) {
+            if ( ! empty( $schedule[ $day ] ) ) {
+                $wpdb->insert( $table, [
+                    'agent_id' => $agent->id,
+                    'service_id' => 0, // 0 means all services
+                    'location_id' => 1, // Default location
+                    'start_time' => $start_time,
+                    'end_time' => $end_time,
+                    'week_day' => $day_number,
+                    'chain_id' => wp_generate_uuid4(),
+                    'created_at' => current_time( 'mysql' ),
+                    'updated_at' => current_time( 'mysql' )
+                ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s' ] );
+            }
         }
         
         return true;
     }
-
-    private function create_agent( $user ) {
-        $order = $this->get_order( $user->ID );
-        $bio = get_user_meta( $user->ID, '_darsna_tutor_bio', true );
-        
-        $first = $user->first_name ?: ($order ? $order->get_billing_first_name() : '');
-        $last = $user->last_name ?: ($order ? $order->get_billing_last_name() : '');
-        
-        if ( !$first || !$last ) {
-            $parts = explode( ' ', $user->display_name, 2 );
-            $first = $first ?: ($parts[0] ?? '');
-            $last = $last ?: ($parts[1] ?? '');
-        }
-
-        $data = [
-            'first_name' => $first,
-            'last_name' => $last,
-            'display_name' => $user->display_name,
-            'email' => $user->user_email,
-            'phone' => $order ? $this->format_phone($order->get_billing_phone()) : '',
-            'wp_user_id' => $user->ID,
-            'status' => 'active'
-        ];
-
-        $result = false;
-        
-        // Try LatePoint v5 Repository API first
-        if ( class_exists('\LatePoint\App\Repositories\AgentRepository') ) {
-            try {
-                $agent = \LatePoint\App\Repositories\AgentRepository::create( $data );
-                $result = $agent && isset( $agent->id );
-            } catch ( Exception $e ) {
-                $result = false;
-            }
-        }
-        
-        // Fallback to v4 model approach
-        if ( ! $result ) {
-            $model = $this->get_agent_model();
-            if ( $model ) {
-                $existing = $model->where(['email' => $data['email']])->get_results();
-                
-                if ( $existing ) {
-                    $update = $this->get_agent_model();
-                    $update->load_by_id( $existing[0]->id );
-                    foreach ( $data as $k => $v ) $update->set_data( $k, $v );
-                    $result = $update->save();
-                } else {
-                    $agent = $this->get_agent_model();
-                    foreach ( $data as $k => $v ) $agent->set_data( $k, $v );
-                    $result = $agent->save();
-                }
-            }
-        }
-        
-        // Final fallback to direct database insert
-        if ( ! $result ) {
-            global $wpdb;
-            $result = $wpdb->insert( $wpdb->prefix . 'latepoint_agents', array_merge($data, [
-                'created_at' => current_time('mysql'),
-                'updated_at' => current_time('mysql')
-            ]) ) !== false;
-        }
-        
-        // Store bio separately if needed
-        if ( $bio && $result ) {
-            update_user_meta( $user->ID, '_darsna_tutor_bio', sanitize_textarea_field($bio) );
-        }
-        
-        return $result;
-    }
-
-    private function assign_service( $user_id, $service_id ) {
-        if ( !$service_id ) return false;
-
-        $model = $this->get_agent_model();
-        $agents = null;
-        
-        // Try to get agent using model if available
-        if ( $model ) {
-            $agents = $model->where(['wp_user_id' => $user_id, 'status' => 'active'])->get_results();
-        } 
-        
-        // If no model, try direct database query
-        if ( !$agents ) {
-            global $wpdb;
-            $agents = $wpdb->get_results( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d AND status = 'active'",
-                $user_id
-            ) );
-        }
-        
-        if ( !$agents ) return false;
-
-        $agent_id = (int)$agents[0]->id;
-        
-        // Try LatePoint v5 Repository API first
-        if ( class_exists('\LatePoint\App\Repositories\AgentServiceRepository') ) {
-            try {
-                $assignment = \LatePoint\App\Repositories\AgentServiceRepository::create([
-                    'agent_id' => $agent_id,
-                    'service_id' => (int)$service_id,
-                ]);
-                return $assignment && isset( $assignment->id );
-            } catch ( Exception $e ) {
-                // Fall through to database method
-            }
-        }
-
-        // Fallback to direct database insert
-        global $wpdb;
-        $table = $wpdb->prefix . 'latepoint_agent_services';
-        
-        $exists = $wpdb->get_var( $wpdb->prepare(
-            "SELECT id FROM {$table} WHERE agent_id = %d AND service_id = %d",
-            $agent_id, $service_id
-        ));
-
-        return $exists ?: $wpdb->insert( $table, [
-            'agent_id' => $agent_id,
-            'service_id' => (int)$service_id
-        ], ['%d', '%d'] ) !== false;
-    }
-
-    private function set_schedule( $user_id, $schedule ) {
-        if ( !$schedule ) return;
-
-        $model = $this->get_agent_model();
-        $agents = null;
-        
-        // Try to get agent using model if available
-        if ( $model ) {
-            $agents = $model->where(['wp_user_id' => $user_id])->get_results();
-        }
-        
-        // If no model, try direct database query
-        if ( !$agents ) {
-            global $wpdb;
-            $agents = $wpdb->get_results( $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d",
-                $user_id
-            ) );
-        }
-        
-        if ( !$agents ) return;
-
-        global $wpdb;
-        $agent_id = $agents[0]->id;
-        $table = $wpdb->prefix . 'latepoint_work_periods';
-
-        $wpdb->delete( $table, ['agent_id' => $agent_id], ['%d'] );
-
-        $days = ['mon'=>1, 'tue'=>2, 'wed'=>3, 'thu'=>4, 'fri'=>5, 'sat'=>6, 'sun'=>7];
-        $start = $this->time_mins( $schedule['start'] ?? '09:00' );
-        $end = $this->time_mins( $schedule['end'] ?? '17:00' );
-
-        foreach ( $days as $day => $num ) {
-            if ( !empty($schedule[$day]) ) {
-                $wpdb->insert( $table, [
-                    'agent_id' => $agent_id,
-                    'week_day' => $num,
-                    'start_time' => $start,
-                    'end_time' => $end,
-                    'chain_id' => wp_generate_uuid4()
-                ], ['%d', '%d', '%d', '%d', '%s'] );
-            }
-        }
-    }
-
-    private function format_phone( $phone ) {
-        if ( !$phone ) return '';
-        $clean = preg_replace( '/[^\d+]/', '', $phone );
-        return strpos($clean, '+') === 0 ? $clean : '+' . preg_replace('/\D/', '', $phone);
-    }
-
-    private function time_mins( $time ) {
+    
+    /**
+     * Convert time string to minutes
+     */
+    private function time_to_minutes( string $time ): int {
         $parts = explode( ':', $time );
-        return ((int)$parts[0] * 60) + (int)($parts[1] ?? 0);
+        return ( (int) $parts[0] * 60 ) + (int) ( $parts[1] ?? 0 );
     }
-
-    private function get_agent_model() {
-        // LatePoint v5
-        if ( class_exists('\LatePoint\App\Models\Agent') ) {
-            return new \LatePoint\App\Models\Agent();
+    
+    /**
+     * Format phone number
+     */
+    private function format_phone( string $phone ): string {
+        if ( empty( $phone ) ) {
+            return '';
         }
-        // LatePoint v4
-        if ( class_exists('\OsAgentModel') ) {
-            return new \OsAgentModel();
+        
+        $clean = preg_replace( '/[^\d+]/', '', $phone );
+        
+        // Add Jordan country code if missing
+        if ( ! empty( $clean ) && strpos( $clean, '+' ) !== 0 ) {
+            $clean = preg_replace( '/\D/', '', $clean );
+            $clean = '+962' . ltrim( $clean, '962' );
         }
-        // No model found
-        return null;
+        
+        return $clean;
     }
-
-    private function get_service_model() {
-        // LatePoint v5
-        if ( class_exists('\LatePoint\App\Models\Service') ) {
-            return new \LatePoint\App\Models\Service();
-        }
-        // LatePoint v4
-        if ( class_exists('\OsServiceModel') ) {
-            return new \OsServiceModel();
-        }
-        // No model found
-        return null;
-    }
-
-    private function services() {
+    
+    /**
+     * Get services from LatePoint
+     */
+    private function get_services(): array {
         if ( ! isset( self::$cache['services'] ) ) {
-            $model = $this->get_service_model();
-            if ( $model ) {
-                self::$cache['services'] = $model->where(['status' => 'active'])->get_results() ?: [];
-            } else {
+            try {
+                // Try v5 Repository first
+                if ( class_exists( '\LatePoint\App\Repositories\ServiceRepository' ) ) {
+                    self::$cache['services'] = \LatePoint\App\Repositories\ServiceRepository::where( [ 'status' => 'active' ] );
+                } else {
+                    // Fallback to direct database query
+                    global $wpdb;
+                    self::$cache['services'] = $wpdb->get_results(
+                        "SELECT * FROM {$wpdb->prefix}latepoint_services WHERE status = 'active' ORDER BY name"
+                    ) ?: [];
+                }
+            } catch ( Exception $e ) {
+                error_log( "Darsna: Error fetching services: " . $e->getMessage() );
                 self::$cache['services'] = [];
             }
         }
+        
         return self::$cache['services'];
     }
-
-    private function get_order( $user_id ) {
-        $key = "order_{$user_id}";
-        if ( ! isset( self::$cache[$key] ) ) {
-            $orders = wc_get_orders(['customer' => $user_id, 'limit' => 1, 'orderby' => 'date', 'order' => 'DESC']);
-            self::$cache[$key] = $orders[0] ?? null;
+    
+    /**
+     * Get user's most recent order
+     */
+    private function get_user_order( int $user_id ) {
+        $cache_key = "order_{$user_id}";
+        
+        if ( ! isset( self::$cache[ $cache_key ] ) ) {
+            $orders = wc_get_orders( [
+                'customer' => $user_id,
+                'limit' => 1,
+                'orderby' => 'date',
+                'order' => 'DESC'
+            ] );
+            
+            self::$cache[ $cache_key ] = $orders[0] ?? null;
         }
-        return self::$cache[$key];
+        
+        return self::$cache[ $cache_key ];
     }
-
-    private function get_data( $user_id ) {
-        $order = $this->get_order( $user_id );
-        if ( !$order ) return null;
-
+    
+    /**
+     * Get tutor data from order
+     */
+    private function get_tutor_data( int $user_id ): ?array {
+        $order = $this->get_user_order( $user_id );
+        if ( ! $order ) {
+            return null;
+        }
+        
         $service_id = $order->get_meta( '_tutor_service_id' );
-        $rate = $order->get_meta( '_tutor_hourly_rate' );
+        $hourly_rate = $order->get_meta( '_tutor_hourly_rate' );
         
-        return ($service_id && $rate) ? [
-            'service_id' => (int)$service_id,
-            'hourly_rate' => (int)$rate,
-            'bio' => sanitize_textarea_field( $order->get_meta('_tutor_bio') ),
+        if ( ! $service_id || ! $hourly_rate ) {
+            return null;
+        }
+        
+        return [
+            'service_id' => (int) $service_id,
+            'hourly_rate' => (int) $hourly_rate,
+            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
             'schedule' => $order->get_meta( '_tutor_schedule' ) ?: []
-        ] : null;
+        ];
     }
-
-    public function pricing( $amount_for_service, $booking, $apply_coupons ) {
-        if ( !isset($booking->agent_id) || !$booking->agent_id ) {
+    
+    /**
+     * Apply dynamic pricing based on tutor rates
+     */
+    public function apply_dynamic_pricing( $amount_for_service, $booking, $apply_coupons ) {
+        if ( empty( $booking->agent_id ) ) {
             return $amount_for_service;
         }
         
-        $key = "rate_{$booking->agent_id}";
-        if ( isset( self::$cache[$key] ) ) {
-            return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
+        $cache_key = "rate_{$booking->agent_id}";
+        if ( isset( self::$cache[ $cache_key ] ) ) {
+            return self::$cache[ $cache_key ] ?: $amount_for_service;
         }
         
-        $model = $this->get_agent_model();
-        $agent = null;
-        
-        // Try using model if available
-        if ( $model ) {
-            $agents = $model->where(['id' => $booking->agent_id])->get_results();
-            $agent = $agents[0] ?? null;
-        }
-        
-        // If no model, try direct database query
-        if ( !$agent ) {
-            global $wpdb;
-            $agent = $wpdb->get_row( $wpdb->prepare(
-                "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-                $booking->agent_id
-            ) );
-        }
-        
-        if ( !$agent || !$agent->wp_user_id ) {
-            self::$cache[$key] = false;
+        try {
+            $agent = $this->get_existing_agent_by_id( $booking->agent_id );
+            if ( ! $agent || ! $agent->wp_user_id ) {
+                self::$cache[ $cache_key ] = false;
+                return $amount_for_service;
+            }
+            
+            $rate = (int) get_user_meta( $agent->wp_user_id, '_darsna_tutor_hourly_rate', true );
+            self::$cache[ $cache_key ] = $rate ?: false;
+            
+            return $rate ?: $amount_for_service;
+            
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error applying dynamic pricing: " . $e->getMessage() );
             return $amount_for_service;
         }
-        
-        $rate = get_user_meta( $agent->wp_user_id, '_darsna_tutor_hourly_rate', true );
-        self::$cache[$key] = $rate ? (int)$rate : false;
-        
-        return self::$cache[$key] ? self::$cache[$key] : $amount_for_service;
     }
-
-    public function menu( $items, $args ) {
-        if ( !is_user_logged_in() || $args->theme_location !== 'primary-menu' ) return $items;
-
+    
+    /**
+     * Get existing agent by agent ID
+     */
+    private function get_existing_agent_by_id( int $agent_id ) {
+        global $wpdb;
+        
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $agent_id
+        ) );
+    }
+    
+    /**
+     * Customize navigation menu for logged-in users
+     */
+    public function customize_menu( string $items, $args ): string {
+        if ( ! is_user_logged_in() || $args->theme_location !== 'primary-menu' ) {
+            return $items;
+        }
+        
         $user = wp_get_current_user();
-        $dash = in_array('latepoint_agent', $user->roles) ? admin_url('admin.php?page=latepoint') : wc_get_page_permalink('myaccount');
-
-        return $items . sprintf(
-            '<li><a href="%s">Dashboard</a></li><li><a href="%s">Logout</a></li>',
-            esc_url($dash), esc_url(wp_logout_url(home_url()))
+        $dashboard_url = in_array( 'latepoint_agent', $user->roles ) 
+            ? admin_url( 'admin.php?page=latepoint' )
+            : wc_get_page_permalink( 'myaccount' );
+        
+        $menu_items = sprintf(
+            '<li class="menu-item"><a href="%s">%s</a></li>
+             <li class="menu-item"><a href="%s">%s</a></li>',
+            esc_url( $dashboard_url ),
+            esc_html__( 'Dashboard', 'darsna' ),
+            esc_url( wp_logout_url( home_url() ) ),
+            esc_html__( 'Logout', 'darsna' )
         );
+        
+        return $items . $menu_items;
     }
 }
 
+// Initialize the plugin
 add_action( 'plugins_loaded', function() {
     Darsna_Tutor_Checkout::instance();
-} );
+}, 20 ); // Load after other plugins
