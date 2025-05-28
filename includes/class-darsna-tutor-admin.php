@@ -381,7 +381,7 @@ class Darsna_Tutor_Admin {
         $services_table = $wpdb->prefix . 'latepoint_services';
         
         return $wpdb->get_results( $wpdb->prepare(
-            "SELECT s.name, s.id, ags.charge_amount, ags.is_custom_hours, ags.is_custom_duration
+            "SELECT s.name, s.id, s.charge_amount, ags.is_custom_hours, ags.is_custom_duration, ags.is_custom_price
              FROM {$agents_services_table} ags
              JOIN {$services_table} s ON ags.service_id = s.id
              WHERE ags.agent_id = %d",
