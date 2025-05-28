@@ -1,0 +1,470 @@
+/* Admin Dashboard Styles for Darsna Tutor Registration */
+
+/* Modal Styles */
+.darsna-modal {
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.darsna-modal-content {
+    background-color: #fff;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    max-width: 800px;
+    width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+    position: relative;
+}
+
+.darsna-modal-header {
+    padding: 20px 30px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #f9f9f9;
+}
+
+.darsna-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    color: #23282d;
+}
+
+.darsna-modal-close {
+    font-size: 24px;
+    font-weight: bold;
+    color: #666;
+    cursor: pointer;
+    line-height: 1;
+    padding: 5px;
+}
+
+.darsna-modal-close:hover {
+    color: #000;
+}
+
+.darsna-modal-body {
+    padding: 30px;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-badge.status-active {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.status-badge.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.status-badge.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+    border: 1px solid #ffeaa7;
+}
+
+/* Agents Table */
+.agents-table-container {
+    margin-top: 20px;
+}
+
+.wp-list-table.agents {
+    border: 1px solid #c3c4c7;
+}
+
+.wp-list-table.agents th,
+.wp-list-table.agents td {
+    padding: 12px 10px;
+    vertical-align: middle;
+}
+
+.wp-list-table.agents .column-name {
+    width: 20%;
+}
+
+.wp-list-table.agents .column-email {
+    width: 18%;
+}
+
+.wp-list-table.agents .column-status {
+    width: 10%;
+}
+
+.wp-list-table.agents .column-services {
+    width: 20%;
+}
+
+.wp-list-table.agents .column-rate {
+    width: 10%;
+}
+
+.wp-list-table.agents .column-created {
+    width: 12%;
+}
+
+.wp-list-table.agents .column-actions {
+    width: 10%;
+}
+
+.wp-list-table.agents .no-items {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Row Actions */
+.row-actions {
+    margin-top: 5px;
+    font-size: 12px;
+}
+
+.row-actions span {
+    display: inline;
+}
+
+.row-actions a {
+    color: #0073aa;
+    text-decoration: none;
+}
+
+.row-actions a:hover {
+    color: #005177;
+}
+
+.row-actions .delete a {
+    color: #a00;
+}
+
+.row-actions .delete a:hover {
+    color: #dc3232;
+}
+
+/* Action Buttons */
+.button.activate-agent {
+    background-color: #00a32a;
+    border-color: #00a32a;
+    color: #fff;
+}
+
+.button.activate-agent:hover {
+    background-color: #008a20;
+    border-color: #008a20;
+}
+
+.button.deactivate-agent {
+    background-color: #d63638;
+    border-color: #d63638;
+    color: #fff;
+}
+
+.button.deactivate-agent:hover {
+    background-color: #b32d2e;
+    border-color: #b32d2e;
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 20px;
+    height: 20px;
+    margin: -10px 0 0 -10px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #0073aa;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Agent Details */
+.agent-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.agent-details-section {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+}
+
+.agent-details-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #23282d;
+    font-size: 16px;
+}
+
+.agent-details-field {
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.agent-details-field strong {
+    color: #555;
+    min-width: 100px;
+}
+
+.agent-details-field span {
+    color: #23282d;
+}
+
+/* Services List */
+.services-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.services-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.services-list li:last-child {
+    border-bottom: none;
+}
+
+.service-name {
+    font-weight: 600;
+    color: #23282d;
+}
+
+.service-rate {
+    color: #0073aa;
+    font-weight: 500;
+}
+
+/* Schedule Display */
+.schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.schedule-day {
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 10px;
+    text-align: center;
+    min-height: 80px;
+}
+
+.schedule-day-name {
+    font-weight: 600;
+    color: #23282d;
+    margin-bottom: 5px;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.schedule-hours {
+    font-size: 11px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.schedule-day.has-hours {
+    background: #e7f3ff;
+    border-color: #0073aa;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .agent-details {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 782px) {
+    .darsna-modal-content {
+        width: 95%;
+        margin: 20px;
+    }
+    
+    .darsna-modal-header,
+    .darsna-modal-body {
+        padding: 20px;
+    }
+    
+    .wp-list-table.agents .column-services,
+    .wp-list-table.agents .column-created {
+        display: none;
+    }
+    
+    .schedule-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .schedule-day {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        min-height: auto;
+        padding: 15px;
+    }
+    
+    .schedule-day-name {
+        margin-bottom: 0;
+    }
+}
+
+/* Bulk Actions */
+.tablenav .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#bulk-action-selector-top {
+    margin-right: 5px;
+}
+
+/* Success/Error Messages */
+.darsna-notice {
+    padding: 12px;
+    margin: 15px 0;
+    border-left: 4px solid;
+    background: #fff;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.darsna-notice.notice-success {
+    border-left-color: #00a32a;
+    background-color: #f0f8f0;
+}
+
+.darsna-notice.notice-error {
+    border-left-color: #d63638;
+    background-color: #fdf0f0;
+}
+
+.darsna-notice.notice-warning {
+    border-left-color: #dba617;
+    background-color: #fef8e7;
+}
+
+/* Form Styles */
+.darsna-form-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+}
+
+.darsna-form-table th,
+.darsna-form-table td {
+    padding: 15px 10px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+}
+
+.darsna-form-table th {
+    width: 200px;
+    text-align: left;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.darsna-form-table input[type="text"],
+.darsna-form-table input[type="email"],
+.darsna-form-table input[type="number"],
+.darsna-form-table select,
+.darsna-form-table textarea {
+    width: 100%;
+    max-width: 400px;
+}
+
+/* Tab Navigation */
+.nav-tab-wrapper {
+    margin-bottom: 20px;
+}
+
+.nav-tab {
+    position: relative;
+}
+
+.nav-tab.nav-tab-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #0073aa;
+}
+
+/* Statistics Cards */
+.stats-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stats-card {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+
+.stats-card-number {
+    font-size: 32px;
+    font-weight: 600;
+    color: #0073aa;
+    line-height: 1;
+    margin-bottom: 5px;
+}
+
+.stats-card-label {
+    color: #666;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}

@@ -18,6 +18,8 @@ define( 'DARSNA_TUTOR_FILE', __FILE__ );
 define( 'DARSNA_TUTOR_PATH', plugin_dir_path( __FILE__ ) );
 define( 'DARSNA_TUTOR_URL', plugin_dir_url( __FILE__ ) );
 define( 'DARSNA_TUTOR_BASENAME', plugin_basename( __FILE__ ) );
+define( 'DARSNA_TUTOR_INCLUDES_PATH', DARSNA_TUTOR_PATH . 'includes/' );
+define( 'DARSNA_TUTOR_ASSETS_URL', DARSNA_TUTOR_URL . 'assets/' );
 
 // Load the main plugin class
 require_once DARSNA_TUTOR_PATH . 'includes/class-darsna-tutor-main.php';

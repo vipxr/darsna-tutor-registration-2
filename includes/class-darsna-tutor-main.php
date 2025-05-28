@@ -102,11 +102,21 @@ if ( ! class_exists( 'Darsna_Tutor_Main' ) ) {
                 define( 'DARSNA_TUTOR_PATH', plugin_dir_path( __DIR__ ) );
             }
 
-            require_once DARSNA_TUTOR_PATH . 'includes/class-darsna-tutor-frontend.php';
-            require_once DARSNA_TUTOR_PATH . 'includes/class-darsna-tutor-backend.php';
+            require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-frontend.php';
+            require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-backend.php';
+            
+            // Include admin dashboard if in admin area
+            if (is_admin()) {
+                require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-admin.php';
+            }
 
             Darsna_Tutor_Frontend::instance();
             Darsna_Tutor_Backend::instance();
+            
+            // Initialize admin dashboard if in admin area
+            if (is_admin()) {
+                Darsna_Tutor_Admin::instance();
+            }
         }
 
         /**
