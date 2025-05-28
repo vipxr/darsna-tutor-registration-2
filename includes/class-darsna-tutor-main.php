@@ -122,13 +122,13 @@ if ( ! class_exists( 'Darsna_Tutor_Main' ) ) {
         }
 
         /**
-         * Deactivate the LatePoint agent when the WP user is deleted.
+         * Completely remove the LatePoint agent when the WP user is deleted.
          *
          * @param int $user_id
          */
         public function handle_user_deletion( int $user_id ): void {
             $backend = Darsna_Tutor_Backend::instance();
-            $backend->deactivate_tutor_agent( $user_id );
+            $backend->remove_tutor_agent( $user_id );
         }
 
         /**

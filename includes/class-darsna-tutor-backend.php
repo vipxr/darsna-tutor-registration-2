@@ -195,6 +195,38 @@ class Darsna_Tutor_Backend {
     }
     
     /**
+     * Completely remove tutor agent from LatePoint
+     */
+    public function remove_tutor_agent( int $user_id ): void {
+        global $wpdb;
+        
+        try {
+            $agent = $this->get_existing_agent( $user_id );
+            if ( $agent ) {
+                $agent_id = $agent->id;
+                
+                // Remove from agents_services table
+                $agents_services_table = $wpdb->prefix . 'latepoint_agents_services';
+                $wpdb->delete( $agents_services_table, [ 'agent_id' => $agent_id ], [ '%d' ] );
+                
+                // Remove from agents table
+                $agents_table = $wpdb->prefix . 'latepoint_agents';
+                $wpdb->delete( $agents_table, [ 'id' => $agent_id ], [ '%d' ] );
+                
+                // Remove WordPress user role
+                $user = get_user_by( 'ID', $user_id );
+                if ( $user ) {
+                    $user->remove_role( 'latepoint_agent' );
+                }
+                
+                error_log( "Darsna: Completely removed agent for user {$user_id}" );
+            }
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error removing agent for user {$user_id}: " . $e->getMessage() );
+        }
+    }
+    
+    /**
      * Create new agent in LatePoint
      */
     private function create_new_agent( WP_User $user, array $tutor_data ): ?int {
