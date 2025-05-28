@@ -130,7 +130,7 @@ final class Darsna_Tutor_Main {
         }
         
         $user = wp_get_current_user();
-        $is_tutor = in_array( 'tutor', $user->roles, true );
+        $is_tutor = in_array( 'latepoint_agent', $user->roles, true );
         
         // Add tutor-specific menu items
         if ( $is_tutor ) {

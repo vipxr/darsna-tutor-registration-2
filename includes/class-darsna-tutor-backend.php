@@ -162,8 +162,8 @@ class Darsna_Tutor_Backend {
             $this->assign_agent_services( $agent_id, $tutor_data['service_id'], $tutor_data );
             $this->set_agent_schedule( $user_id, $tutor_data['schedule'] );
             
-            // Update user role
-            $user->add_role( 'tutor' );
+            // Update user role to LatePoint agent
+            $user->add_role( 'latepoint_agent' );
             
             error_log( "Darsna: Successfully activated agent for user {$user_id}" );
             
@@ -184,7 +184,7 @@ class Darsna_Tutor_Backend {
                 // Remove tutor role
                 $user = get_user_by( 'ID', $user_id );
                 if ( $user ) {
-                    $user->remove_role( 'tutor' );
+                    $user->remove_role( 'latepoint_agent' );
                 }
                 
                 error_log( "Darsna: Deactivated agent for user {$user_id}" );

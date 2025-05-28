@@ -31,7 +31,7 @@ Key functionalitie
 *   Adds custom fields to the WooCommerce registration form and 'My Account' > 'Edit Account' page.
 *   Validates these custom fields during registration and account updates.
 *   Saves custom field data as user meta.
-*   For users registering or updating their role to 'Tutor':
+*   For users registering or updating their role to 'LatePoint Agent':
     *   Creates or updates a corresponding 'Agent' in LatePoint.
     *   Syncs their selected subjects as services for the LatePoint agent.
     *   Syncs their hourly rate and urgent hourly rate (if applicable) to LatePoint agent meta.
