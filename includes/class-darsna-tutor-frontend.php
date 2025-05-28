@@ -133,7 +133,7 @@ class Darsna_Tutor_Frontend {
      */
     private function render_rate_field(): void {
         echo '<p class="form-row form-row-wide">';
-        echo '<label for="tutor_rate">' . __( 'Hourly Rate', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
+        echo '<label for="tutor_rate">' . __( 'Hourly Rate  (USD)', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
         echo '<select name="tutor_rate" id="tutor_rate" class="select" required>';
         echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
         
