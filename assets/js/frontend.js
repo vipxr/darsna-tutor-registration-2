@@ -173,7 +173,7 @@
          */
         updatePricingDisplay: function(rate) {
             // You can add logic here to show pricing information
-            console.log('Selected rate:', rate + ' JOD');
+            console.log('Selected rate:', rate);
         },
         
         /**

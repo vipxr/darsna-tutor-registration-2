@@ -68,7 +68,7 @@ darsna-tutor-registration/
 
 ### Frontend Features
 - **Service Selection**: Choose teaching subjects from LatePoint services
-- **Rate Configuration**: Set hourly rates (5-50 JOD)
+- **Rate Configuration**: Set hourly rates (5-50)
 - **Bio/Experience**: Text area for tutor background
 - **Schedule Management**: Select available days and hours
 - **Real-time Validation**: Client-side form validation

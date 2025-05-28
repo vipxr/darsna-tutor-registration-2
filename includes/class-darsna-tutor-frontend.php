@@ -133,13 +133,13 @@ class Darsna_Tutor_Frontend {
      */
     private function render_rate_field(): void {
         echo '<p class="form-row form-row-wide">';
-        echo '<label for="tutor_rate">' . __( 'Hourly Rate (JOD)', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
+        echo '<label for="tutor_rate">' . __( 'Hourly Rate', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
         echo '<select name="tutor_rate" id="tutor_rate" class="select" required>';
         echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
         
         for ( $rate = self::MIN_RATE; $rate <= self::MAX_RATE; $rate += self::RATE_STEP ) {
             $selected = selected( $_POST['tutor_rate'] ?? '', $rate, false );
-            echo "<option value='{$rate}'{$selected}>{$rate} JOD</option>";
+            echo "<option value='{$rate}'{$selected}>{$rate}</option>";
         }
         
         echo '</select></p>';
@@ -217,7 +217,7 @@ class Darsna_Tutor_Frontend {
         // Validate rate
         $rate = (int) ( $_POST['tutor_rate'] ?? 0 );
         if ( $rate < self::MIN_RATE || $rate > self::MAX_RATE ) {
-            $errors[] = sprintf( __( 'Please select a valid hourly rate between %d and %d JOD.', 'darsna-tutor' ), self::MIN_RATE, self::MAX_RATE );
+            $errors[] = sprintf( __( 'Please select a valid hourly rate between %d and %d.', 'darsna-tutor' ), self::MIN_RATE, self::MAX_RATE );
         }
         
         // Validate schedule
