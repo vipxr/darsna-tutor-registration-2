@@ -125,7 +125,7 @@ final class Darsna_Tutor_Main {
      * Customize navigation menu for logged-in users
      */
     public function customize_nav_menu( $items, $args ) {
-        if ( ! is_user_logged_in() || $args->theme_location !== 'primary' ) {
+        if ( ! is_user_logged_in() || $args->theme_location !== 'primary-menu' ) {
             return $items;
         }
         
@@ -134,8 +134,11 @@ final class Darsna_Tutor_Main {
         
         // Add tutor-specific menu items
         if ( $is_tutor ) {
-            $tutor_menu = '<li class="menu-item"><a href="/tutor-dashboard">Dashboard</a></li>';
+            $tutor_menu = '<li class="menu-item"><a href="/wp-admin/admin.php?page=latepoint">Dashboard</a></li>';
             $items .= $tutor_menu;
+        } else {
+            $tutor_menu = '<li class="menu-item"><a href="/my-account/">Account</a></li>';
+            $items.= $tutor_menu;
         }
         
         return $items;
