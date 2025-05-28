@@ -159,7 +159,7 @@ class Darsna_Tutor_Backend {
             }
             
             // Assign services and set schedule
-            $this->assign_agent_services( $agent_id, $tutor_data['service_id'] );
+            $this->assign_agent_services( $agent_id, $tutor_data['service_id'], $tutor_data );
             $this->set_agent_schedule( $user_id, $tutor_data['schedule'] );
             
             // Update user role
@@ -272,19 +272,25 @@ class Darsna_Tutor_Backend {
     /**
      * Assign services to agent
      */
-    private function assign_agent_services( int $agent_id, int $service_id ): bool {
+    private function assign_agent_services( int $agent_id, int $service_id, array $tutor_data ): bool {
         global $wpdb;
         
         try {
             // Clear existing assignments
-            $table = $wpdb->prefix . 'latepoint_agent_services';
+            $table = $wpdb->prefix . 'latepoint_agents_services'; // Fixed table name
             $wpdb->delete( $table, [ 'agent_id' => $agent_id ], [ '%d' ] );
             
-            // Add new assignment
+            // Add new assignment with custom pricing and hours from form data
             $result = $wpdb->insert( $table, [
                 'agent_id' => $agent_id,
-                'service_id' => $service_id
-            ], [ '%d', '%d' ] );
+                'service_id' => $service_id,
+                'location_id' => 1, // Default location
+                'is_custom_hours' => 1, // We have custom schedule from form
+                'is_custom_price' => 1, // We have custom hourly rate from form
+                'is_custom_duration' => 0, // Use default service duration
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s' ] );
             
             return $result !== false;
         } catch ( Exception $e ) {
