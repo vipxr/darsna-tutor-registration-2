@@ -94,21 +94,45 @@
     color: #555;
 }
 
-.day-checkbox {
-    display: inline-block;
-    margin-right: 15px;
-    margin-bottom: 8px;
-    font-weight: normal !important;
-    cursor: pointer;
+.schedule-days .days-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
 }
 
-.day-checkbox input[type="checkbox"] {
-    margin-right: 5px;
-    transform: scale(1.1);
+.day-checkbox {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 20px;
+    font-weight: normal !important;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
 }
 
 .day-checkbox:hover {
+    background: #e9ecef;
+    border-color: #0073aa;
     color: #0073aa;
+}
+
+.day-checkbox input[type="checkbox"]:checked + span {
+    font-weight: 600;
+    color: #0073aa;
+}
+
+.day-checkbox input[type="checkbox"]:checked {
+    background: #0073aa;
+}
+
+.day-checkbox input[type="checkbox"] {
+    margin-right: 8px;
+    transform: scale(1.1);
+    accent-color: #0073aa;
 }
 
 .schedule-times {
@@ -157,7 +181,15 @@
 @media (max-width: 768px) {
     #tutor-registration-fields {
         padding: 15px;
-        margin: 15px 0;
+    }
+    
+    .schedule-days .days-container {
+        gap: 8px;
+    }
+    
+    .day-checkbox {
+        padding: 6px 10px;
+        font-size: 14px;
     }
     
     .schedule-times {
@@ -167,12 +199,6 @@
     
     .time-group {
         min-width: auto;
-    }
-    
-    .day-checkbox {
-        display: block;
-        margin-right: 0;
-        margin-bottom: 10px;
     }
 }
 

@@ -46,7 +46,7 @@ class Darsna_Tutor_Frontend {
     private function setup_hooks(): void {
         // Frontend hooks
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
-        add_action( 'woocommerce_after_checkout_billing_form', [ $this, 'render_tutor_fields' ] );
+        add_action( 'woocommerce_after_checkout_registration_form', [ $this, 'render_tutor_fields' ] );
         
         // Checkout processing hooks
         add_action( 'woocommerce_checkout_process', [ $this, 'validate_checkout' ] );
@@ -169,19 +169,21 @@ class Darsna_Tutor_Frontend {
         echo '<label>' . __( 'Available Days:', 'darsna-tutor' ) . '</label>';
         
         $days = [
-            'mon' => __( 'Monday', 'darsna-tutor' ),
-            'tue' => __( 'Tuesday', 'darsna-tutor' ),
-            'wed' => __( 'Wednesday', 'darsna-tutor' ),
-            'thu' => __( 'Thursday', 'darsna-tutor' ),
-            'fri' => __( 'Friday', 'darsna-tutor' ),
-            'sat' => __( 'Saturday', 'darsna-tutor' ),
-            'sun' => __( 'Sunday', 'darsna-tutor' )
+            'mon' => __( 'Mon', 'darsna-tutor' ),
+            'tue' => __( 'Tue', 'darsna-tutor' ),
+            'wed' => __( 'Wed', 'darsna-tutor' ),
+            'thu' => __( 'Thu', 'darsna-tutor' ),
+            'fri' => __( 'Fri', 'darsna-tutor' ),
+            'sat' => __( 'Sat', 'darsna-tutor' ),
+            'sun' => __( 'Sun', 'darsna-tutor' )
         ];
         
+        echo '<div class="days-container">';
         foreach ( $days as $key => $label ) {
             $checked = in_array( $key, $_POST['schedule_days'] ?? self::DEFAULT_SCHEDULE_DAYS ) ? 'checked' : '';
-            echo "<label class='day-checkbox'><input type='checkbox' name='schedule_days[]' value='{$key}' {$checked}> {$label}</label>";
+            echo "<label class='day-checkbox'><input type='checkbox' name='schedule_days[]' value='{$key}' {$checked}><span>{$label}</span></label>";
         }
+        echo '</div>';
         
         echo '</div>';
         
