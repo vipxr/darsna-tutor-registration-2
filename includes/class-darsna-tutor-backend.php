@@ -571,4 +571,242 @@ class Darsna_Tutor_Backend {
         $parts = explode( ':', $time );
         return ( (int) $parts[0] * 60 ) + (int) ( $parts[1] ?? 0 );
     }
+    
+    /**
+     * Get all agents from LatePoint with WordPress user data
+     */
+    public function get_all_agents(): array {
+        global $wpdb;
+        
+        $agents_table = $wpdb->prefix . 'latepoint_agents';
+        
+        $agents = $wpdb->get_results(
+            "SELECT * FROM {$agents_table} ORDER BY created_at DESC"
+        );
+        
+        // Enhance with WordPress user data
+        foreach ( $agents as &$agent ) {
+            $wp_user = get_user_by( 'email', $agent->email );
+            if ( $wp_user ) {
+                $agent->wp_user_id = $wp_user->ID;
+                $agent->wp_user = $wp_user;
+            }
+        }
+        
+        return $agents ?: [];
+    }
+    
+    /**
+     * Get agent by ID
+     */
+    public function get_agent_by_id( int $agent_id ) {
+        global $wpdb;
+        
+        return $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $agent_id
+        ));
+    }
+    
+    /**
+     * Get agent services with custom rates
+     */
+    public function get_agent_services( int $agent_id ): array {
+        global $wpdb;
+        
+        $agents_services_table = $wpdb->prefix . 'latepoint_agents_services';
+        $services_table = $wpdb->prefix . 'latepoint_services';
+        
+        $services = $wpdb->get_results( $wpdb->prepare(
+            "SELECT s.name, s.id, s.charge_amount, ags.is_custom_hours, ags.is_custom_duration, ags.is_custom_price
+             FROM {$agents_services_table} ags
+             JOIN {$services_table} s ON ags.service_id = s.id
+             WHERE ags.agent_id = %d",
+            $agent_id
+        )) ?: [];
+        
+        // Get custom rates from agent meta
+        foreach ($services as $service) {
+            $custom_rate = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
+                 WHERE object_id = %d AND meta_key = %s",
+                $agent_id,
+                "service_{$service->id}_rate"
+            ));
+            
+            if ($custom_rate !== null) {
+                $service->custom_rate = floatval($custom_rate);
+            }
+        }
+        
+        return $services;
+    }
+    
+    /**
+     * Get agent schedule from meta data
+     */
+    public function get_agent_schedule( int $agent_id ): array {
+        global $wpdb;
+        
+        $schedule_data = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key LIKE 'schedule_%'",
+            $agent_id
+        ));
+        
+        $schedule = [];
+        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        
+        // Initialize default schedule
+        foreach ( $days as $day ) {
+            $schedule[$day] = [
+                'enabled' => false,
+                'start_time' => '09:00',
+                'end_time' => '17:00'
+            ];
+        }
+        
+        // Parse existing schedule data
+        foreach ( $schedule_data as $meta ) {
+            if ( strpos( $meta->meta_key, 'schedule_' ) === 0 ) {
+                $parts = explode( '_', $meta->meta_key );
+                if ( count( $parts ) >= 3 ) {
+                    $day = $parts[1];
+                    $field = $parts[2];
+                    
+                    if ( isset( $schedule[$day] ) ) {
+                        if ( $field === 'enabled' ) {
+                            $schedule[$day]['enabled'] = ( $meta->meta_value === '1' || $meta->meta_value === 'true' );
+                        } else {
+                            $schedule[$day][$field] = $meta->meta_value;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return $schedule;
+    }
+    
+    /**
+     * Update agent services and rates
+     */
+    public function update_agent_services( int $agent_id, array $services, array $service_rates = [] ): bool {
+        global $wpdb;
+        
+        try {
+            // Remove existing services
+            $wpdb->delete(
+                $wpdb->prefix . 'latepoint_agents_services',
+                ['agent_id' => $agent_id],
+                ['%d']
+            );
+            
+            // Add new services with rates
+            foreach ($services as $service_id) {
+                $service_id = intval($service_id);
+                $custom_rate = isset($service_rates[$service_id]) ? floatval($service_rates[$service_id]) : null;
+                
+                $wpdb->insert(
+                    $wpdb->prefix . 'latepoint_agents_services',
+                    [
+                        'agent_id' => $agent_id,
+                        'service_id' => $service_id,
+                        'location_id' => 1, // Default location
+                        'is_custom_hours' => 'no',
+                        'is_custom_price' => $custom_rate ? 'yes' : 'no',
+                        'is_custom_duration' => 'no',
+                        'created_at' => current_time('mysql'),
+                        'updated_at' => current_time('mysql')
+                    ],
+                    ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
+                );
+                
+                // Store custom rate in agent meta if provided
+                if ($custom_rate) {
+                    $this->update_agent_meta($agent_id, "service_{$service_id}_rate", $custom_rate);
+                }
+            }
+            
+            return true;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error updating agent services: " . $e->getMessage() );
+            return false;
+        }
+    }
+    
+    /**
+     * Update agent meta data
+     */
+    public function update_agent_meta( int $agent_id, string $meta_key, $meta_value ): bool {
+        global $wpdb;
+        
+        try {
+            // Check if meta exists
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_id FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key = %s",
+                $agent_id,
+                $meta_key
+            ));
+            
+            if ($existing) {
+                // Update existing meta
+                $result = $wpdb->update(
+                    $wpdb->prefix . 'latepoint_agent_meta',
+                    ['meta_value' => $meta_value],
+                    ['object_id' => $agent_id, 'meta_key' => $meta_key],
+                    ['%s'],
+                    ['%d', '%s']
+                );
+            } else {
+                // Insert new meta
+                $result = $wpdb->insert(
+                    $wpdb->prefix . 'latepoint_agent_meta',
+                    [
+                        'object_id' => $agent_id,
+                        'meta_key' => $meta_key,
+                        'meta_value' => $meta_value
+                    ],
+                    ['%d', '%s', '%s']
+                );
+            }
+            
+            return $result !== false;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error updating agent meta: " . $e->getMessage() );
+            return false;
+        }
+    }
+    
+    /**
+     * Update agent basic information
+     */
+    public function update_agent_basic_info( int $agent_id, array $form_data ): bool {
+        global $wpdb;
+        
+        try {
+            $agent_data = [
+                'first_name' => sanitize_text_field($form_data['first_name'] ?? ''),
+                'last_name' => sanitize_text_field($form_data['last_name'] ?? ''),
+                'email' => sanitize_email($form_data['email'] ?? ''),
+                'phone' => sanitize_text_field($form_data['phone'] ?? ''),
+                'status' => sanitize_text_field($form_data['status'] ?? 'active'),
+                'bio' => sanitize_textarea_field($form_data['bio'] ?? ''),
+                'features' => sanitize_textarea_field($form_data['features'] ?? ''),
+                'updated_at' => current_time('mysql')
+            ];
+            
+            $result = $wpdb->update(
+                $wpdb->prefix . 'latepoint_agents',
+                $agent_data,
+                ['id' => $agent_id],
+                ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'],
+                ['%d']
+            );
+            
+            return $result !== false;
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error updating agent basic info: " . $e->getMessage() );
+            return false;
+        }
+    }
 }
