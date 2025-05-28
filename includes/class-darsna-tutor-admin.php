@@ -42,6 +42,7 @@ class Darsna_Tutor_Admin {
         add_action( 'wp_ajax_darsna_get_agent_details', [ $this, 'ajax_get_agent_details' ] );
         add_action( 'wp_ajax_darsna_update_agent_services', [ $this, 'ajax_update_agent_services' ] );
         add_action( 'wp_ajax_darsna_update_agent_schedule', [ $this, 'ajax_update_agent_schedule' ] );
+        add_action( 'wp_ajax_darsna_update_agent', [ $this, 'ajax_update_agent' ] );
     }
     
     /**
@@ -276,7 +277,7 @@ class Darsna_Tutor_Admin {
                         <th class="manage-column column-name"><?php esc_html_e( 'Name', 'darsna-tutor' ); ?></th>
                         <th class="manage-column column-email"><?php esc_html_e( 'Email', 'darsna-tutor' ); ?></th>
                         <th class="manage-column column-status"><?php esc_html_e( 'Status', 'darsna-tutor' ); ?></th>
-                        <th class="manage-column column-services"><?php esc_html_e( 'Services', 'darsna-tutor' ); ?></th>
+                        <th class="manage-column column-services"><?php esc_html_e( 'Service', 'darsna-tutor' ); ?></th>
                         <th class="manage-column column-rate"><?php esc_html_e( 'Rate', 'darsna-tutor' ); ?></th>
                         <th class="manage-column column-created"><?php esc_html_e( 'Created', 'darsna-tutor' ); ?></th>
                         <th class="manage-column column-actions"><?php esc_html_e( 'Actions', 'darsna-tutor' ); ?></th>
@@ -380,13 +381,29 @@ class Darsna_Tutor_Admin {
         $agents_services_table = $wpdb->prefix . 'latepoint_agents_services';
         $services_table = $wpdb->prefix . 'latepoint_services';
         
-        return $wpdb->get_results( $wpdb->prepare(
+        $services = $wpdb->get_results( $wpdb->prepare(
             "SELECT s.name, s.id, s.charge_amount, ags.is_custom_hours, ags.is_custom_duration, ags.is_custom_price
              FROM {$agents_services_table} ags
              JOIN {$services_table} s ON ags.service_id = s.id
              WHERE ags.agent_id = %d",
             $agent_id
         )) ?: [];
+        
+        // Get custom rates from agent meta
+        foreach ($services as $service) {
+            $custom_rate = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
+                 WHERE agent_id = %d AND meta_key = %s",
+                $agent_id,
+                "service_{$service->id}_rate"
+            ));
+            
+            if ($custom_rate !== null) {
+                $service->custom_rate = floatval($custom_rate);
+            }
+        }
+        
+        return $services;
     }
     
     /**
@@ -510,16 +527,71 @@ class Darsna_Tutor_Admin {
         // Get services
         $services = $this->get_agent_services( $agent_id );
         
+        // Get all available services
+        $all_services = $wpdb->get_results(
+            "SELECT id, name, charge_amount FROM {$wpdb->prefix}latepoint_services ORDER BY name"
+        );
+        
+        // Get agent schedule
+        $schedule = $this->get_agent_schedule( $agent_id );
+        
         // Get WordPress user data
         $wp_user = get_user_by( 'email', $agent->email );
         
         $agent_data = [
             'agent' => $agent,
             'services' => $services,
+            'all_services' => $all_services,
+            'schedule' => $schedule,
             'wp_user' => $wp_user ? $wp_user->data : null,
         ];
         
         wp_send_json_success( $agent_data );
+    }
+    
+    /**
+     * Get agent schedule
+     */
+    private function get_agent_schedule( int $agent_id ): array {
+        global $wpdb;
+        
+        $schedule_data = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key LIKE 'schedule_%'",
+            $agent_id
+        ));
+        
+        $schedule = [];
+        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        
+        // Initialize default schedule
+        foreach ( $days as $day ) {
+            $schedule[$day] = [
+                'enabled' => false,
+                'start_time' => '09:00',
+                'end_time' => '17:00'
+            ];
+        }
+        
+        // Parse existing schedule data
+        foreach ( $schedule_data as $meta ) {
+            if ( strpos( $meta->meta_key, 'schedule_' ) === 0 ) {
+                $parts = explode( '_', $meta->meta_key );
+                if ( count( $parts ) >= 3 ) {
+                    $day = $parts[1];
+                    $field = $parts[2];
+                    
+                    if ( isset( $schedule[$day] ) ) {
+                        if ( $field === 'enabled' ) {
+                            $schedule[$day]['enabled'] = ( $meta->meta_value === '1' || $meta->meta_value === 'true' );
+                        } else {
+                            $schedule[$day][$field] = $meta->meta_value;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return $schedule;
     }
     
     /**
@@ -573,6 +645,166 @@ class Darsna_Tutor_Admin {
             wp_send_json_success( __( 'Agent schedule updated successfully.', 'darsna-tutor' ) );
         } else {
             wp_send_json_error( __( 'Failed to update agent schedule.', 'darsna-tutor' ) );
+        }
+    }
+    
+    /**
+     * Update agent via AJAX
+     */
+    public function ajax_update_agent() {
+        check_ajax_referer('darsna_admin_nonce', 'nonce');
+        
+        $agent_id = intval($_POST['agent_id']);
+        
+        if (!$agent_id) {
+            wp_send_json_error('Invalid agent ID');
+        }
+        
+        global $wpdb;
+        
+        // Parse form data
+        parse_str($_POST['form_data'], $form_data);
+        
+        // Update agent basic info
+        $agent_data = [
+            'first_name' => sanitize_text_field($form_data['first_name']),
+            'last_name' => sanitize_text_field($form_data['last_name']),
+            'email' => sanitize_email($form_data['email']),
+            'phone' => sanitize_text_field($form_data['phone'] ?? ''),
+            'status' => sanitize_text_field($form_data['status']),
+            'bio' => sanitize_textarea_field($form_data['bio'] ?? ''),
+            'features' => sanitize_textarea_field($form_data['features'] ?? ''),
+            'updated_at' => current_time('mysql')
+        ];
+        
+        $updated = $wpdb->update(
+            $wpdb->prefix . 'latepoint_agents',
+            $agent_data,
+            ['id' => $agent_id],
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'],
+            ['%d']
+        );
+        
+        if ($updated === false) {
+            wp_send_json_error('Failed to update agent');
+        }
+        
+        // Update services and rates
+        if (isset($_POST['services']) && isset($_POST['service_rates'])) {
+            $this->update_agent_services_and_rates($agent_id, $_POST['services'], $_POST['service_rates']);
+        }
+        
+        // Update schedule
+        if (isset($_POST['schedule'])) {
+            $this->update_agent_schedule($agent_id, $_POST['schedule']);
+        }
+        
+        wp_send_json_success('Agent updated successfully');
+    }
+    
+    /**
+     * Update agent services and rates
+     */
+    private function update_agent_services_and_rates($agent_id, $services, $service_rates) {
+        global $wpdb;
+        
+        // Remove existing services
+        $wpdb->delete(
+            $wpdb->prefix . 'latepoint_agents_services',
+            ['agent_id' => $agent_id],
+            ['%d']
+        );
+        
+        // Add new services with rates
+        foreach ($services as $service_id) {
+            $service_id = intval($service_id);
+            $custom_rate = isset($service_rates[$service_id]) ? floatval($service_rates[$service_id]) : null;
+            
+            $wpdb->insert(
+                $wpdb->prefix . 'latepoint_agents_services',
+                [
+                    'agent_id' => $agent_id,
+                    'service_id' => $service_id,
+                    'location_id' => 1, // Default location
+                    'is_custom_hours' => 'no',
+                    'is_custom_price' => $custom_rate ? 'yes' : 'no',
+                    'is_custom_duration' => 'no',
+                    'created_at' => current_time('mysql'),
+                    'updated_at' => current_time('mysql')
+                ],
+                ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
+            );
+            
+            // Store custom rate in agent meta if provided
+            if ($custom_rate) {
+                $this->update_agent_meta($agent_id, "service_{$service_id}_rate", $custom_rate);
+            }
+        }
+    }
+    
+    /**
+     * Update agent schedule
+     */
+    private function update_agent_schedule($agent_id, $schedule) {
+        global $wpdb;
+        
+        // Remove existing schedule meta
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key LIKE 'schedule_%'",
+            $agent_id
+        ));
+        
+        // Add new schedule data
+        foreach ($schedule as $day => $day_data) {
+            $day = sanitize_key($day);
+            
+            if (isset($day_data['enabled'])) {
+                $this->update_agent_meta($agent_id, "schedule_{$day}_enabled", $day_data['enabled'] ? '1' : '0');
+            }
+            
+            if (isset($day_data['start_time'])) {
+                $this->update_agent_meta($agent_id, "schedule_{$day}_start_time", sanitize_text_field($day_data['start_time']));
+            }
+            
+            if (isset($day_data['end_time'])) {
+                $this->update_agent_meta($agent_id, "schedule_{$day}_end_time", sanitize_text_field($day_data['end_time']));
+            }
+        }
+    }
+    
+    /**
+     * Update agent meta
+     */
+    private function update_agent_meta($agent_id, $meta_key, $meta_value) {
+        global $wpdb;
+        
+        // Check if meta exists
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT meta_id FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key = %s",
+            $agent_id,
+            $meta_key
+        ));
+        
+        if ($existing) {
+            // Update existing meta
+            $wpdb->update(
+                $wpdb->prefix . 'latepoint_agent_meta',
+                ['meta_value' => $meta_value],
+                ['agent_id' => $agent_id, 'meta_key' => $meta_key],
+                ['%s'],
+                ['%d', '%s']
+            );
+        } else {
+            // Insert new meta
+            $wpdb->insert(
+                $wpdb->prefix . 'latepoint_agent_meta',
+                [
+                    'agent_id' => $agent_id,
+                    'meta_key' => $meta_key,
+                    'meta_value' => $meta_value
+                ],
+                ['%d', '%s', '%s']
+            );
         }
     }
 }

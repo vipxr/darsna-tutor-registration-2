@@ -430,45 +430,123 @@
          */
         renderAgentEditForm: function(data) {
             const agent = data.agent;
+            const services = data.services || [];
+            const allServices = data.all_services || [];
+            const schedule = data.schedule || {};
+            
+            // Build services selection
+            let servicesHTML = '';
+            if (allServices.length > 0) {
+                allServices.forEach(service => {
+                    const assignedService = services.find(s => s.id == service.id);
+                    const isAssigned = !!assignedService;
+                    const customRate = assignedService ? (assignedService.custom_rate || service.charge_amount) : service.charge_amount;
+                    
+                    servicesHTML += `
+                        <div class="service-item">
+                            <label>
+                                <input type="checkbox" name="services[]" value="${service.id}" ${isAssigned ? 'checked' : ''}>
+                                ${service.name}
+                            </label>
+                            <div class="service-rate">
+                                <label>Rate (USD):</label>
+                                <input type="number" name="service_rates[${service.id}]" value="${parseFloat(customRate || 0).toFixed(2)}" step="0.01" min="0">
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                servicesHTML = '<p>No services available</p>';
+            }
+            
+            // Build schedule fields
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            const dayLabels = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            
+            let scheduleHTML = '';
+            days.forEach((day, index) => {
+                const daySchedule = schedule[day] || {};
+                const isEnabled = daySchedule.enabled || false;
+                const startTime = daySchedule.start_time || '09:00';
+                const endTime = daySchedule.end_time || '17:00';
+                
+                scheduleHTML += `
+                    <div class="schedule-day">
+                        <label class="day-label">
+                            <input type="checkbox" name="schedule[${day}][enabled]" value="1" ${isEnabled ? 'checked' : ''}>
+                            ${dayLabels[index]}
+                        </label>
+                        <div class="time-inputs">
+                            <input type="time" name="schedule[${day}][start_time]" value="${startTime}" ${!isEnabled ? 'disabled' : ''}>
+                            <span>to</span>
+                            <input type="time" name="schedule[${day}][end_time]" value="${endTime}" ${!isEnabled ? 'disabled' : ''}>
+                        </div>
+                    </div>
+                `;
+            });
             
             const html = `
                 <form id="agent-edit-form" data-agent-id="${agent.id}">
-                    <table class="darsna-form-table">
-                        <tr>
-                            <th>First Name</th>
-                            <td><input type="text" name="first_name" value="${agent.first_name}" required></td>
-                        </tr>
-                        <tr>
-                            <th>Last Name</th>
-                            <td><input type="text" name="last_name" value="${agent.last_name}" required></td>
-                        </tr>
-                        <tr>
-                            <th>Email</th>
-                            <td><input type="email" name="email" value="${agent.email}" required></td>
-                        </tr>
-                        <tr>
-                            <th>Phone</th>
-                            <td><input type="text" name="phone" value="${agent.phone || ''}"></td>
-                        </tr>
-                        <tr>
-                            <th>Status</th>
-                            <td>
-                                <select name="status">
-                                    <option value="active" ${agent.status === 'active' ? 'selected' : ''}>Active</option>
-                                    <option value="inactive" ${agent.status === 'inactive' ? 'selected' : ''}>Inactive</option>
-                                    <option value="pending" ${agent.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                </select>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>Bio</th>
-                            <td><textarea name="bio" rows="4">${agent.bio || ''}</textarea></td>
-                        </tr>
-                        <tr>
-                            <th>Features</th>
-                            <td><textarea name="features" rows="3">${agent.features || ''}</textarea></td>
-                        </tr>
-                    </table>
+                    <div class="agent-edit-tabs">
+                        <nav class="nav-tab-wrapper">
+                            <a href="#tab-personal" class="nav-tab nav-tab-active">Personal Info</a>
+                            <a href="#tab-services" class="nav-tab">Services & Rates</a>
+                            <a href="#tab-schedule" class="nav-tab">Schedule</a>
+                        </nav>
+                        
+                        <div id="tab-personal" class="tab-content active">
+                            <table class="darsna-form-table">
+                                <tr>
+                                    <th>First Name</th>
+                                    <td><input type="text" name="first_name" value="${agent.first_name}" required></td>
+                                </tr>
+                                <tr>
+                                    <th>Last Name</th>
+                                    <td><input type="text" name="last_name" value="${agent.last_name}" required></td>
+                                </tr>
+                                <tr>
+                                    <th>Email</th>
+                                    <td><input type="email" name="email" value="${agent.email}" required></td>
+                                </tr>
+                                <tr>
+                                    <th>Phone</th>
+                                    <td><input type="text" name="phone" value="${agent.phone || ''}"></td>
+                                </tr>
+                                <tr>
+                                    <th>Status</th>
+                                    <td>
+                                        <select name="status">
+                                            <option value="active" ${agent.status === 'active' ? 'selected' : ''}>Active</option>
+                                            <option value="inactive" ${agent.status === 'inactive' ? 'selected' : ''}>Inactive</option>
+                                            <option value="pending" ${agent.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Bio</th>
+                                    <td><textarea name="bio" rows="4">${agent.bio || ''}</textarea></td>
+                                </tr>
+                                <tr>
+                                    <th>Features</th>
+                                    <td><textarea name="features" rows="3">${agent.features || ''}</textarea></td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <div id="tab-services" class="tab-content">
+                            <h3>Assign Services and Set Rates</h3>
+                            <div class="services-list">
+                                ${servicesHTML}
+                            </div>
+                        </div>
+                        
+                        <div id="tab-schedule" class="tab-content">
+                            <h3>Weekly Schedule</h3>
+                            <div class="schedule-container">
+                                ${scheduleHTML}
+                            </div>
+                        </div>
+                    </div>
                     
                     <p class="submit">
                         <button type="submit" class="button button-primary">Update Agent</button>
@@ -478,6 +556,40 @@
             `;
             
             $('#agent-details-content').html(html);
+            
+            // Initialize tab functionality
+            this.initEditFormTabs();
+        },
+        
+        /**
+         * Initialize edit form tabs
+         */
+        initEditFormTabs: function() {
+            // Tab switching
+            $('.nav-tab').on('click', function(e) {
+                e.preventDefault();
+                const target = $(this).attr('href');
+                
+                // Update active tab
+                $('.nav-tab').removeClass('nav-tab-active');
+                $(this).addClass('nav-tab-active');
+                
+                // Update active content
+                $('.tab-content').removeClass('active');
+                $(target).addClass('active');
+            });
+            
+            // Schedule day enable/disable functionality
+            $('input[name*="[enabled]"]').on('change', function() {
+                const dayContainer = $(this).closest('.schedule-day');
+                const timeInputs = dayContainer.find('input[type="time"]');
+                
+                if ($(this).is(':checked')) {
+                    timeInputs.prop('disabled', false);
+                } else {
+                    timeInputs.prop('disabled', true);
+                }
+            });
         },
 
         /**
@@ -488,18 +600,52 @@
             
             const form = $(this);
             const agentId = form.data('agent-id');
-            const formData = form.serialize();
+            
+            // Collect form data
+            const formData = new FormData(form[0]);
+            
+            // Collect services and rates
+            const services = [];
+            const serviceRates = {};
+            
+            form.find('input[name="services[]"]:checked').each(function() {
+                const serviceId = $(this).val();
+                services.push(serviceId);
+                
+                const rateInput = form.find(`input[name="service_rates[${serviceId}]"]`);
+                if (rateInput.length) {
+                    serviceRates[serviceId] = rateInput.val();
+                }
+            });
+            
+            // Collect schedule data
+            const schedule = {};
+            const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+            
+            days.forEach(day => {
+                const enabled = form.find(`input[name="schedule[${day}][enabled]"]`).is(':checked');
+                const startTime = form.find(`input[name="schedule[${day}][start_time]"]`).val();
+                const endTime = form.find(`input[name="schedule[${day}][end_time]"]`).val();
+                
+                schedule[day] = {
+                    enabled: enabled,
+                    start_time: startTime,
+                    end_time: endTime
+                };
+            });
             
             DarsnaAdmin.showLoading();
             
-            // Note: You would need to implement this AJAX endpoint
             $.ajax({
                 url: darsna_admin.ajax_url,
                 type: 'POST',
                 data: {
                     action: 'darsna_update_agent',
                     agent_id: agentId,
-                    form_data: formData,
+                    form_data: form.serialize(),
+                    services: services,
+                    service_rates: serviceRates,
+                    schedule: schedule,
                     nonce: darsna_admin.nonce
                 },
                 success: function(response) {

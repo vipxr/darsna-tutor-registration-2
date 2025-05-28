@@ -2,6 +2,7 @@
 
 /* Modal Styles */
 .darsna-modal {
+    display: none;
     position: fixed;
     z-index: 100000;
     left: 0;
@@ -9,52 +10,213 @@
     width: 100%;
     height: 100%;
     background-color: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .darsna-modal-content {
     background-color: #fff;
+    margin: 5% auto;
+    padding: 0;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    max-width: 800px;
     width: 90%;
-    max-height: 90%;
+    max-width: 900px;
+    max-height: 85vh;
     overflow-y: auto;
-    position: relative;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .darsna-modal-header {
-    padding: 20px 30px;
+    padding: 20px;
     border-bottom: 1px solid #ddd;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
     background-color: #f9f9f9;
+    border-radius: 4px 4px 0 0;
 }
 
 .darsna-modal-header h2 {
     margin: 0;
-    font-size: 20px;
-    color: #23282d;
+    font-size: 18px;
+    color: #333;
 }
 
 .darsna-modal-close {
+    float: right;
     font-size: 24px;
     font-weight: bold;
-    color: #666;
+    color: #999;
     cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
     line-height: 1;
-    padding: 5px;
 }
 
 .darsna-modal-close:hover {
-    color: #000;
+    color: #333;
 }
 
 .darsna-modal-body {
-    padding: 30px;
+    padding: 20px;
+}
+
+/* Agent Edit Form Tabs */
+.agent-edit-tabs {
+    margin-bottom: 20px;
+}
+
+.nav-tab-wrapper {
+    border-bottom: 1px solid #ccc;
+    margin: 0 0 20px 0;
+    padding: 0;
+}
+
+.nav-tab {
+    display: inline-block;
+    padding: 8px 12px;
+    margin: 0 5px -1px 0;
+    background: #f1f1f1;
+    border: 1px solid #ccc;
+    border-bottom: none;
+    text-decoration: none;
+    color: #555;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.2s ease;
+}
+
+.nav-tab:hover {
+    background: #e9e9e9;
+    color: #333;
+}
+
+.nav-tab-active {
+    background: #fff;
+    border-bottom: 1px solid #fff;
+    color: #333;
+    font-weight: 600;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* Services Section */
+.services-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    background: #f9f9f9;
+}
+
+.service-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px;
+    margin-bottom: 10px;
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+}
+
+.service-item:last-child {
+    margin-bottom: 0;
+}
+
+.service-item label {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    margin: 0;
+    flex: 1;
+}
+
+.service-item input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.service-rate {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.service-rate label {
+    font-size: 12px;
+    color: #666;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.service-rate input[type="number"] {
+    width: 80px;
+    padding: 4px 6px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+/* Schedule Section */
+.schedule-container {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    background: #f9f9f9;
+}
+
+.schedule-day {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: #fff;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+}
+
+.schedule-day:last-child {
+    margin-bottom: 0;
+}
+
+.day-label {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+    margin: 0;
+    min-width: 120px;
+}
+
+.day-label input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.time-inputs input[type="time"] {
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 13px;
+}
+
+.time-inputs input[type="time"]:disabled {
+    background: #f5f5f5;
+    color: #999;
+}
+
+.time-inputs span {
+    color: #666;
+    font-size: 13px;
 }
 
 /* Status Badges */
