@@ -393,7 +393,7 @@ class Darsna_Tutor_Admin {
         foreach ($services as $service) {
             $custom_rate = $wpdb->get_var($wpdb->prepare(
                 "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
-                 WHERE agent_id = %d AND meta_key = %s",
+                 WHERE object_id = %d AND meta_key = %s",
                 $agent_id,
                 "service_{$service->id}_rate"
             ));
@@ -556,7 +556,7 @@ class Darsna_Tutor_Admin {
         global $wpdb;
         
         $schedule_data = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key LIKE 'schedule_%'",
+            "SELECT * FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key LIKE 'schedule_%'",
             $agent_id
         ));
         
@@ -750,7 +750,7 @@ class Darsna_Tutor_Admin {
         
         // Remove existing schedule meta
         $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key LIKE 'schedule_%'",
+            "DELETE FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key LIKE 'schedule_%'",
             $agent_id
         ));
         
@@ -780,7 +780,7 @@ class Darsna_Tutor_Admin {
         
         // Check if meta exists
         $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT meta_id FROM {$wpdb->prefix}latepoint_agent_meta WHERE agent_id = %d AND meta_key = %s",
+            "SELECT meta_id FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key = %s",
             $agent_id,
             $meta_key
         ));
@@ -790,7 +790,7 @@ class Darsna_Tutor_Admin {
             $wpdb->update(
                 $wpdb->prefix . 'latepoint_agent_meta',
                 ['meta_value' => $meta_value],
-                ['agent_id' => $agent_id, 'meta_key' => $meta_key],
+                ['object_id' => $agent_id, 'meta_key' => $meta_key],
                 ['%s'],
                 ['%d', '%s']
             );
@@ -799,7 +799,7 @@ class Darsna_Tutor_Admin {
             $wpdb->insert(
                 $wpdb->prefix . 'latepoint_agent_meta',
                 [
-                    'agent_id' => $agent_id,
+                    'object_id' => $agent_id,
                     'meta_key' => $meta_key,
                     'meta_value' => $meta_value
                 ],
