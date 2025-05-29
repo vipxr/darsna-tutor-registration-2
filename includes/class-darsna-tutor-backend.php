@@ -486,16 +486,36 @@ class Darsna_Tutor_Backend {
         
         if ( ! isset( self::$cache[ $cache_key ] ) ) {
             try {
+                error_log( "Darsna: Looking for agent with wp_user_id: {$user_id}" );
+                
                 // Try v5 Repository first
                 if ( class_exists( '\LatePoint\App\Repositories\AgentRepository' ) ) {
-                    self::$cache[ $cache_key ] = \LatePoint\App\Repositories\AgentRepository::where( [ 'wp_user_id' => $user_id ] )[0] ?? null;
+                    error_log( "Darsna: Using LatePoint v5 Repository" );
+                    $agents = \LatePoint\App\Repositories\AgentRepository::where( [ 'wp_user_id' => $user_id ] );
+                    error_log( "Darsna: Found " . count($agents) . " agents with wp_user_id {$user_id}" );
+                    self::$cache[ $cache_key ] = $agents[0] ?? null;
                 } else {
+                    error_log( "Darsna: Using direct database query" );
                     // Fallback to direct database query
                     global $wpdb;
-                    self::$cache[ $cache_key ] = $wpdb->get_row(
-                        $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id = %d", $user_id )
+                    $table_name = $wpdb->prefix . 'latepoint_agents';
+                    error_log( "Darsna: Querying table: {$table_name}" );
+                    
+                    $agent = $wpdb->get_row(
+                        $wpdb->prepare( "SELECT * FROM {$table_name} WHERE wp_user_id = %d", $user_id )
                     );
+                    
+                    if ( $wpdb->last_error ) {
+                        error_log( "Darsna: Database error: " . $wpdb->last_error );
+                    }
+                    
+                    error_log( "Darsna: Direct query result: " . ( $agent ? "Found agent ID {$agent->id}" : "No agent found" ) );
+                    self::$cache[ $cache_key ] = $agent;
                 }
+                
+                $result = self::$cache[ $cache_key ];
+                error_log( "Darsna: Final result - Got agent id=" . ( $result ? $result->id : 'NULL' ) );
+                
             } catch ( Exception $e ) {
                 error_log( "Darsna: Error fetching agent: " . $e->getMessage() );
                 self::$cache[ $cache_key ] = null;
