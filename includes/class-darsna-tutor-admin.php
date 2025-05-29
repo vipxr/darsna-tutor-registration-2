@@ -120,10 +120,20 @@ class Darsna_Tutor_Admin {
      */
     public function admin_page(): void {
         error_log('Darsna Admin: admin_page() called');
+        
+        // Check for any output buffering or errors
+        if (ob_get_level()) {
+            error_log('Darsna Admin: Output buffering is active at level: ' . ob_get_level());
+        }
+        
         $agents = $this->get_all_agents();
         error_log('Darsna Admin: admin_page() received ' . count($agents) . ' agents');
         $current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( $_GET['tab'] ) : 'list';
         
+        error_log('Darsna Admin: About to start HTML output');
+        
+        // Test if HTML output is working
+        echo '<!-- Darsna Admin: HTML output test -->';
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Tutor Agents Management', 'darsna-tutor' ); ?></h1>
@@ -176,6 +186,7 @@ class Darsna_Tutor_Admin {
             </div>
         </div>
         <?php
+        error_log('Darsna Admin: HTML output completed successfully');
     }
     
     /**
@@ -198,41 +209,28 @@ class Darsna_Tutor_Admin {
                 
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><?php esc_html_e( 'Auto-approve new agents', 'darsna-tutor' ); ?></th>
+                        <th scope="row"><?php esc_html_e( 'Auto-approve agents', 'darsna-tutor' ); ?></th>
                         <td>
                             <label>
-                                <input type="checkbox" name="auto_approve" value="1" <?php checked( $settings['auto_approve'] ?? false ); ?> />
+                                <input type="checkbox" name="auto_approve" value="1" <?php checked( $settings['auto_approve'] ?? false ); ?>>
                                 <?php esc_html_e( 'Automatically approve new agent registrations', 'darsna-tutor' ); ?>
                             </label>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><?php esc_html_e( 'Default agent status', 'darsna-tutor' ); ?></th>
-                        <td>
-                            <select name="default_status">
-                                <option value="pending" <?php selected( $settings['default_status'] ?? 'pending', 'pending' ); ?>>
-                                    <?php esc_html_e( 'Pending', 'darsna-tutor' ); ?>
-                                </option>
-                                <option value="active" <?php selected( $settings['default_status'] ?? 'pending', 'active' ); ?>>
-                                    <?php esc_html_e( 'Active', 'darsna-tutor' ); ?>
-                                </option>
-                            </select>
                         </td>
                     </tr>
                     <tr>
                         <th scope="row"><?php esc_html_e( 'Email notifications', 'darsna-tutor' ); ?></th>
                         <td>
                             <label>
-                                <input type="checkbox" name="email_notifications" value="1" <?php checked( $settings['email_notifications'] ?? true ); ?> />
-                                <?php esc_html_e( 'Send email notifications for agent status changes', 'darsna-tutor' ); ?>
+                                <input type="checkbox" name="email_notifications" value="1" <?php checked( $settings['email_notifications'] ?? true ); ?>>
+                                <?php esc_html_e( 'Send email notifications for new registrations', 'darsna-tutor' ); ?>
                             </label>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><?php esc_html_e( 'Admin email', 'darsna-tutor' ); ?></th>
+                        <th scope="row"><?php esc_html_e( 'Notification email', 'darsna-tutor' ); ?></th>
                         <td>
-                            <input type="email" name="admin_email" value="<?php echo esc_attr( $settings['admin_email'] ?? get_option( 'admin_email' ) ); ?>" class="regular-text" />
-                            <p class="description"><?php esc_html_e( 'Email address to receive notifications about new agent registrations.', 'darsna-tutor' ); ?></p>
+                            <input type="email" name="notification_email" value="<?php echo esc_attr( $settings['notification_email'] ?? get_option( 'admin_email' ) ); ?>" class="regular-text">
+                            <p class="description"><?php esc_html_e( 'Email address to receive notifications', 'darsna-tutor' ); ?></p>
                         </td>
                     </tr>
                 </table>
@@ -246,36 +244,39 @@ class Darsna_Tutor_Admin {
     /**
      * Render agents table
      */
-    private function render_agents_table( array $agents, string $filter = '' ): void {
+    public function render_agents_table( array $agents, string $filter = '' ): void {
         error_log('Darsna Admin: render_agents_table() called with ' . count($agents) . ' agents and filter: ' . $filter);
         
-        if ( $filter ) {
-            $original_count = count($agents);
+        // Apply filter
+        if ( ! empty( $filter ) ) {
             $agents = array_filter( $agents, function( $agent ) use ( $filter ) {
                 return $agent->status === $filter;
             });
-            error_log('Darsna Admin: After filtering by "' . $filter . '": ' . count($agents) . ' agents (from ' . $original_count . ')');
         }
         
         error_log('Darsna Admin: About to render table with ' . count($agents) . ' agents');
+        
         if (!empty($agents)) {
-            error_log('Darsna Admin: First agent sample: ' . print_r($agents[0], true));
+            $first_agent = reset($agents);
+            error_log('Darsna Admin: First agent sample: ' . print_r($first_agent, true));
         }
         
         ?>
-        <div class="agents-table-container">
+        <div class="agents-list-container">
             <div class="tablenav top">
-                <div class="alignleft actions">
-                    <select id="bulk-action-selector-top">
-                        <option value="-1"><?php esc_html_e( 'Bulk Actions', 'darsna-tutor' ); ?></option>
+                <div class="alignleft actions bulkactions">
+                    <label for="bulk-action-selector-top" class="screen-reader-text"><?php esc_html_e( 'Select bulk action', 'darsna-tutor' ); ?></label>
+                    <select name="action" id="bulk-action-selector-top">
+                        <option value="-1"><?php esc_html_e( 'Bulk actions', 'darsna-tutor' ); ?></option>
                         <option value="activate"><?php esc_html_e( 'Activate', 'darsna-tutor' ); ?></option>
                         <option value="deactivate"><?php esc_html_e( 'Deactivate', 'darsna-tutor' ); ?></option>
                         <option value="delete"><?php esc_html_e( 'Delete', 'darsna-tutor' ); ?></option>
                     </select>
                     <input type="submit" id="doaction" class="button action" value="<?php esc_attr_e( 'Apply', 'darsna-tutor' ); ?>">
                 </div>
+                
                 <div class="tablenav-pages">
-                    <span class="displaying-num"><?php printf( esc_html__( '%d agents', 'darsna-tutor' ), count( $agents ) ); ?></span>
+                    <span class="displaying-num"><?php printf( esc_html__( '%d items', 'darsna-tutor' ), count( $agents ) ); ?></span>
                 </div>
             </div>
             
