@@ -282,42 +282,63 @@ class Darsna_Tutor_Tutors_Page {
     }
     
     private function get_avatar_url($tutor_id) {
-        // Check if LatePoint classes are available
-        if (class_exists('OsAgentModel') && class_exists('OsAgentHelper')) {
-            // Use LatePoint's agent model to get the agent
-            $agent = new OsAgentModel();
-            $agent = $agent->where(['id' => $tutor_id])->set_limit(1)->get_results_as_models();
+        global $wpdb;
+        
+        // Get agent data from LatePoint agents table
+        $agent_data = $wpdb->get_row($wpdb->prepare(
+            "SELECT avatar_image_id, wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $tutor_id
+        ));
+        
+        if ($agent_data && !empty($agent_data->avatar_image_id)) {
+            // Get the image metadata from wp_postmeta
+            $image_meta = $wpdb->get_var($wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->prefix}postmeta WHERE post_id = %d AND meta_key = '_wp_attachment_metadata'",
+                $agent_data->avatar_image_id
+            ));
             
-            if (!empty($agent) && is_array($agent)) {
-                $agent = $agent[0];
-                // Use LatePoint's built-in avatar method
-                $avatar_url = $agent->get_avatar_url();
-                if ($avatar_url) {
-                    return $avatar_url;
+            if ($image_meta) {
+                $meta_data = maybe_unserialize($image_meta);
+                
+                if (is_array($meta_data) && isset($meta_data['file'])) {
+                    // Get the upload directory info
+                    $upload_dir = wp_upload_dir();
+                    
+                    // Check if thumbnail size exists, otherwise use original
+                    if (isset($meta_data['sizes']['thumbnail']['file'])) {
+                        $file_path = dirname($meta_data['file']) . '/' . $meta_data['sizes']['thumbnail']['file'];
+                    } else {
+                        $file_path = $meta_data['file'];
+                    }
+                    
+                    // Construct the full URL
+                    $avatar_url = $upload_dir['baseurl'] . '/' . $file_path;
+                    
+                    // Verify the file exists
+                    $file_full_path = $upload_dir['basedir'] . '/' . $file_path;
+                    if (file_exists($file_full_path)) {
+                        return $avatar_url;
+                    }
                 }
             }
         }
         
-        // Fallback: try to get wp_user_id and use WordPress avatar
-        global $wpdb;
-        $wp_user_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-            $tutor_id
-        ));
-        
-        if ($wp_user_id) {
-            $avatar_url = get_avatar_url($wp_user_id, array(
-                'size' => 120,
-                'default' => 'identicon'
-            ));
-            
-            if ($avatar_url) {
-                return $avatar_url;
+        // Fallback to gravatar if wp_user_id exists
+        if ($agent_data && !empty($agent_data->wp_user_id)) {
+            $user_info = get_userdata($agent_data->wp_user_id);
+            if ($user_info) {
+                return get_avatar_url($user_info->user_email, array(
+                    'size' => 120,
+                    'default' => 'identicon'
+                ));
             }
         }
         
-        // Final fallback to default SVG avatar
-        return 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#e0e0e0"/><circle cx="60" cy="45" r="20" fill="#bdbdbd"/><ellipse cx="60" cy="100" rx="35" ry="25" fill="#bdbdbd"/></svg>');
+        // Final fallback to default gravatar
+        return get_avatar_url('default@example.com', array(
+            'size' => 120,
+            'default' => 'identicon'
+        ));
     }
     
     private function format_price_range($min_price, $max_price) {
