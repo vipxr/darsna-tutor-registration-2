@@ -282,8 +282,22 @@ class Darsna_Tutor_Tutors_Page {
     }
     
     private function get_avatar_url($tutor_id) {
-        // Try to get avatar from WordPress user if wp_user_id exists
         global $wpdb;
+        
+        // First try to get LatePoint avatar_id from agents table
+        $avatar_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT avatar_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $tutor_id
+        ));
+        
+        if ($avatar_id) {
+            $avatar_url = wp_get_attachment_image_url($avatar_id, 'thumbnail');
+            if ($avatar_url) {
+                return $avatar_url;
+            }
+        }
+        
+        // Fallback to WordPress user avatar if wp_user_id exists
         $wp_user_id = $wpdb->get_var($wpdb->prepare(
             "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
             $tutor_id
