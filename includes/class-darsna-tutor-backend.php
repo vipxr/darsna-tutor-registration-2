@@ -428,21 +428,27 @@ class Darsna_Tutor_Backend {
                 
                 // Create new work period instance
                 $work_period = new OsWorkPeriodModel();
-                $work_period->agent_id = $agent_id;
-                $work_period->service_id = 0; // all services
-                $work_period->location_id = $location_id;
-                $work_period->week_day = $week_day_number;
-                $work_period->start_time = $start;
-                $work_period->end_time = $end;
-                $work_period->chain_id = wp_generate_uuid4();
-                $work_period->custom_date = null; // For regular weekly schedule
                 
-                // Save the work period
+                // Set all required properties using set_data method like LatePoint does
+                $work_period_data = [
+                    'agent_id' => $agent_id,
+                    'service_id' => 0, // all services
+                    'location_id' => $location_id,
+                    'week_day' => $week_day_number,
+                    'start_time' => $start,
+                    'end_time' => $end,
+                    'chain_id' => substr(wp_generate_uuid4(), 0, 20), // Truncate to 20 chars for varchar(20)
+                    'custom_date' => null // For regular weekly schedule
+                ];
+                
+                $work_period->set_data($work_period_data);
                 $save_result = $work_period->save();
+                
                 if ( $save_result ) {
                     error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
-                    error_log( "Darsna: Failed to save work period for day {$day} using OsWorkPeriodModel, trying fallback method" );
+                    $error_messages = $work_period->get_error_messages();
+                    error_log( "Darsna: Failed to save work period for day {$day}: " . implode(', ', $error_messages ?: ['Unknown error']) );
                     // Fallback to direct database insertion for this specific day
                     $this->insert_work_period_direct( $agent_id, $week_day_number, $start, $end, $location_id );
                 }
