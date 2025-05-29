@@ -432,8 +432,7 @@ class Darsna_Tutor_Tutors_Page {
             <div class="tutors-enhanced-filters">
                 <?php if ($atts['show_search'] === 'yes'): ?>
                 <div class="enhanced-search-container">
-                    <input type="text" id="enhanced-tutor-search" placeholder="Search tutors by name, subject, or expertise..." class="enhanced-search-input">
-                    <span class="enhanced-search-icon">🔍</span>
+                    <input type="text" id="enhanced-tutor-search" placeholder="Search tutors by name, subject, or expertise..." class="enhanced-search-input" style="padding: 10px;">
                 </div>
                 <?php endif; ?>
                 
