@@ -177,18 +177,6 @@ class Darsna_Tutor_Frontend {
         echo '</select>';
         echo '</div>';
         
-        // Urgent rate selection (shown when rate is selected)
-        echo '<div class="urgent-rate-container">';
-        echo '<label>' . __( 'Urgent Rate (within 6 hours):', 'darsna-tutor' ) . '</label>';
-        echo '<select name="tutor_services[' . $index . '][urgent_rate]" class="urgent-rate-select">';
-        echo '<option value="">' . __( 'Select urgent rate...', 'darsna-tutor' ) . '</option>';
-        
-        // Generate urgent rate options from $10 to $100 (higher rates for urgent bookings)
-        for ( $i = 10; $i <= 100; $i+=5  ) {
-            $selected = selected( $urgent_rate, $i, false );
-            echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
-        }
-        
         echo '</select>';
         echo '</div>';
         
