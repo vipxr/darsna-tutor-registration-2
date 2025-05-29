@@ -808,19 +808,20 @@ class Darsna_Tutor_Backend {
                     }
                     
                     // Get custom rate from custom_prices table if available
-                    if ( $agent_service->is_custom_price === 'yes' ) {
-                        global $wpdb;
-                        $custom_price = $wpdb->get_var( $wpdb->prepare(
-                            "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
-                             WHERE agent_id = %d AND service_id = %d AND location_id = 1",
-                            $agent_id,
-                            $agent_service->service_id
-                        ));
-                        error_log("Darsna: Custom price query for agent {$agent_id}, service {$agent_service->service_id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
-                        if ( $custom_price !== null ) {
-                            $service_data['custom_rate'] = floatval( $custom_price );
-                            error_log("Darsna: Set custom_rate to: " . $service_data['custom_rate']);
-                        }
+                    error_log("Darsna: Agent service is_custom_price value: " . ($agent_service->is_custom_price ?? 'NULL'));
+                    
+                    // Always try to get custom price regardless of is_custom_price flag
+                    global $wpdb;
+                    $custom_price = $wpdb->get_var( $wpdb->prepare(
+                        "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
+                         WHERE agent_id = %d AND service_id = %d",
+                        $agent_id,
+                        $agent_service->service_id
+                    ));
+                    error_log("Darsna: Custom price query for agent {$agent_id}, service {$agent_service->service_id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
+                    if ( $custom_price !== null ) {
+                        $service_data['custom_rate'] = floatval( $custom_price );
+                        error_log("Darsna: Set custom_rate to: " . $service_data['custom_rate']);
                     }
                     
                     $services[] = (object) $service_data;
@@ -848,19 +849,20 @@ class Darsna_Tutor_Backend {
         
         // Get custom rates from custom_prices table
         foreach ($services as $service) {
-            if ($service->is_custom_price === 'yes') {
-                $custom_price = $wpdb->get_var($wpdb->prepare(
-                    "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
-                     WHERE agent_id = %d AND service_id = %d AND location_id = 1",
-                    $agent_id,
-                    $service->id
-                ));
-                
-                error_log("Darsna: Fallback custom price query for agent {$agent_id}, service {$service->id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
-                if ($custom_price !== null) {
-                    $service->custom_rate = floatval($custom_price);
-                    error_log("Darsna: Fallback set custom_rate to: " . $service->custom_rate);
-                }
+            error_log("Darsna: Fallback service is_custom_price value: " . ($service->is_custom_price ?? 'NULL'));
+            
+            // Always try to get custom price regardless of is_custom_price flag
+            $custom_price = $wpdb->get_var($wpdb->prepare(
+                "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
+                 WHERE agent_id = %d AND service_id = %d",
+                $agent_id,
+                $service->id
+            ));
+            
+            error_log("Darsna: Fallback custom price query for agent {$agent_id}, service {$service->id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
+            if ($custom_price !== null) {
+                $service->custom_rate = floatval($custom_price);
+                error_log("Darsna: Fallback set custom_rate to: " . $service->custom_rate);
             }
         }
         
