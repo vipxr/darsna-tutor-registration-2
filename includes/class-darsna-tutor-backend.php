@@ -366,31 +366,34 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Set agent schedule using LatePoint API
+     * Set agent schedule using LatePoint OsWorkPeriodModel
      */
     public function set_agent_schedule( int $user_id, array $schedule ): bool {
-
-        error_log( 'WorkPeriodsRepository exists? '. (class_exists( 'OsRepositories\WorkPeriodsRepository' ) ? 'yes' : 'no') );
-        error_log( 'sync_agent_work_periods exists? '. (method_exists( 'OsRepositories\WorkPeriodsRepository', 'sync_agent_work_periods' ) ? 'yes' : 'no') );
-
-
         // Must have at least one day selected
         if ( empty( $schedule['days'] ) ) {
             return false;
         }
         
+        // Check if OsWorkPeriodModel is available
+        if ( ! class_exists( 'OsModels\OsWorkPeriodModel' ) ) {
+            error_log( "Darsna: OsWorkPeriodModel not found, falling back to direct database" );
+            return $this->set_agent_schedule_fallback( $user_id, $schedule );
+        }
+        
         try {
-            // Check if LatePoint WorkPeriodsRepository is available
-            if ( ! class_exists( '\OsRepositories\WorkPeriodsRepository' ) ) {
-                error_log( "Darsna: LatePoint WorkPeriodsRepository not found, falling back to direct database" );
-                return $this->set_agent_schedule_fallback( $user_id, $schedule );
-            }
-            
             // Fetch LatePoint agent record
             $agent = $this->get_existing_agent( $user_id );
             if ( ! $agent ) {
                 return false;
             }
+            
+            // Convert hh:mm to minutes since midnight
+            $start = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
+            $end = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
+            $location_id = $schedule['location_id'] ?? 1;
+            
+            // Delete any old periods for this agent
+            \OsModels\OsWorkPeriodModel::where( 'agent_id', $agent->id )->delete();
             
             // Map keys to LatePoint week_day numbers
             $day_map = [
@@ -398,33 +401,26 @@ class Darsna_Tutor_Backend {
                 'fri' => 5, 'sat' => 6, 'sun' => 7
             ];
             
-            // Convert hh:mm to minutes since midnight
-            $start = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
-            $end = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
-            $location_id = $schedule['location_id'] ?? 1;
-            
-            // Build the array of work-period rows
-            $periods = [];
+            // Insert a new row for each selected day
             foreach ( $schedule['days'] as $day ) {
                 if ( ! isset( $day_map[ $day ] ) ) {
                     continue;
                 }
-                $periods[] = [
-                    'week_day' => $day_map[ $day ],
+                \OsModels\OsWorkPeriodModel::create([
+                    'agent_id' => $agent->id,
                     'service_id' => 0, // 0 = all services
                     'location_id' => $location_id,
+                    'week_day' => $day_map[ $day ],
                     'start_time' => $start,
                     'end_time' => $end,
                     'chain_id' => wp_generate_uuid4(),
-                ];
+                ]);
             }
             
-            // Sync via the repository: deletes old, inserts these
-            $repo = \OsRepositories\WorkPeriodsRepository::instance();
-            return (bool) $repo->sync_agent_work_periods( $agent->id, $periods );
+            return true;
             
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error setting schedule via API: " . $e->getMessage() );
+            error_log( "Darsna: Error setting schedule via OsWorkPeriodModel: " . $e->getMessage() );
             return $this->set_agent_schedule_fallback( $user_id, $schedule );
         }
     }
