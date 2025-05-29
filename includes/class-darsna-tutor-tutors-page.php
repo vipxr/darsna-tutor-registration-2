@@ -443,6 +443,12 @@ class Darsna_Tutor_Tutors_Page {
                         <option value="100+">$100+/hr</option>
                     </select>
                     
+                    <select id="enhanced-sort-filter" class="enhanced-filter-select">
+                        <option value="name">Sort by Name</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                    </select>
+                    
                     <div class="enhanced-urgent-help-group">
                         <label class="enhanced-urgent-help-checkbox">
                             <input type="checkbox" id="enhanced-urgent-help-filter" value="yes">
@@ -451,15 +457,9 @@ class Darsna_Tutor_Tutors_Page {
                         </label>
                         <div class="enhanced-filter-tip enhanced-urgent-help-tip visible">
                             <span class="enhanced-tip-icon">💡</span>
-                            <span class="enhanced-tip-text">6hr response</span>
+                            <span class="enhanced-tip-text">Quick response</span>
                         </div>
                     </div>
-                    
-                    <select id="enhanced-sort-filter" class="enhanced-filter-select">
-                        <option value="name">Sort by Name</option>
-                        <option value="price-low">Price: Low to High</option>
-                        <option value="price-high">Price: High to Low</option>
-                    </select>
                     
                     <button id="enhanced-clear-filters" class="enhanced-clear-btn">Clear</button>
                 </div>
@@ -524,10 +524,21 @@ class Darsna_Tutor_Tutors_Page {
              data-min-price="<?php echo esc_attr($tutor->min_price); ?>"
              data-max-price="<?php echo esc_attr($tutor->max_price); ?>"
              data-name="<?php echo esc_attr(strtolower($full_name)); ?>"
-             data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
+             data-tutor-id="<?php echo esc_attr($tutor->id); ?>"
+             data-urgent-help="<?php echo !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1 ? 'yes' : 'no'; ?>">
             
             <div class="latepoint-resource-item-avatar">
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="latepoint-resource-avatar">
+                <?php if (!empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1): ?>
+                    <div class="urgent-help-badge" title="⚡ Urgent Help Available - This tutor responds within 6 hours for immediate assistance">
+                        <span class="urgent-icon">⚡</span>
+                        <span class="urgent-text">Urgent Help</span>
+                        <div class="urgent-tooltip">
+                            <strong>⚡ Urgent Help Available</strong>
+                            <p>This tutor provides quick responses within 6 hours for immediate assistance with your learning needs.</p>
+                        </div>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="latepoint-resource-item-info">
