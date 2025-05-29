@@ -372,13 +372,20 @@ class Darsna_Tutor_Backend {
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
 		// Debug logging to confirm method is called
-		$days_debug = isset( $schedule['days'] ) ? print_r( $schedule['days'], true ) : 'NOT SET';
-		error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}, days={$days_debug}" );
+		error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}" );
 		error_log( "DEBUG: Full schedule data: " . print_r( $schedule, true ) );
 
-		// 1) need at least one day
-		if ( empty( $schedule['days'] ) ) {
-			error_log( "Darsna: No days provided in schedule" );
+		// Check if we have any enabled days
+		$enabled_days = [];
+		foreach ( ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as $day ) {
+			if ( isset( $schedule[$day] ) && $schedule[$day]['enabled'] === true ) {
+				$enabled_days[] = $day;
+			}
+		}
+
+		// 1) need at least one enabled day
+		if ( empty( $enabled_days ) ) {
+			error_log( "Darsna: No enabled days found in schedule" );
 			return false;
 		}
 
@@ -391,41 +398,26 @@ class Darsna_Tutor_Backend {
         try {
             error_log( "Darsna: Setting schedule for agent_id={$agent_id}" );
 
-            // 3) translate times to minutes
-            $start       = $this->time_to_minutes( $schedule['start']  ?? '09:00' );
-            $end         = $this->time_to_minutes( $schedule['end']    ?? '17:00' );
             $location_id = $schedule['location_id'] ?? 1;
 
             // 4) delete old work periods
             OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
 
-            // 5) handle days - support both numeric (1-7) and string formats
+            // 5) handle enabled days - map day names to numbers
             $day_map = [
-                'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
-                'fri' => 5, 'sat' => 6, 'sun' => 7,
                 'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
                 'friday' => 5, 'saturday' => 6, 'sunday' => 7
             ];
 
-            foreach ( $schedule['days'] as $day ) {
-                $week_day_number = null;
+            foreach ( $enabled_days as $day ) {
+                $day_data = $schedule[$day];
+                $week_day_number = $day_map[$day];
                 
-                // Handle numeric days (1-7)
-                if ( is_numeric( $day ) ) {
-                    $day_num = intval( $day );
-                    if ( $day_num >= 1 && $day_num <= 7 ) {
-                        $week_day_number = $day_num;
-                    }
-                }
-                // Handle string days (mon, tue, etc.)
-                else if ( isset( $day_map[ strtolower( $day ) ] ) ) {
-                    $week_day_number = $day_map[ strtolower( $day ) ];
-                }
+                // Get start/end times for this specific day
+                $start = $this->time_to_minutes( $day_data['start_time'] ?? '09:00' );
+                $end   = $this->time_to_minutes( $day_data['end_time'] ?? '17:00' );
 
-                if ( ! $week_day_number ) {
-                    error_log( "Darsna: Skipping invalid day '{$day}'" );
-                    continue;
-                }
+                error_log( "Darsna: Processing day '{$day}' -> weekday {$week_day_number}, times {$start}-{$end}" );
                 
                 // Create new work period instance
                 $work_period = new OsWorkPeriodModel();
