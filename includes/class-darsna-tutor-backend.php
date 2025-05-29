@@ -807,11 +807,17 @@ class Darsna_Tutor_Backend {
                         }
                     }
                     
-                    // Get custom rate from agent meta if available
+                    // Get custom rate from custom_prices table if available
                     if ( $agent_service->is_custom_price === 'yes' ) {
-                        $custom_rate = $this->get_agent_meta( $agent_id, "service_{$agent_service->service_id}_rate" );
-                        if ( $custom_rate !== null ) {
-                            $service_data['custom_rate'] = floatval( $custom_rate );
+                        global $wpdb;
+                        $custom_price = $wpdb->get_var( $wpdb->prepare(
+                            "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
+                             WHERE agent_id = %d AND service_id = %d AND location_id = 1",
+                            $agent_id,
+                            $agent_service->service_id
+                        ));
+                        if ( $custom_price !== null ) {
+                            $service_data['custom_rate'] = floatval( $custom_price );
                         }
                     }
                     
@@ -838,17 +844,19 @@ class Darsna_Tutor_Backend {
             $agent_id
         )) ?: [];
         
-        // Get custom rates from agent meta
+        // Get custom rates from custom_prices table
         foreach ($services as $service) {
-            $custom_rate = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
-                 WHERE object_id = %d AND meta_key = %s",
-                $agent_id,
-                "service_{$service->id}_rate"
-            ));
-            
-            if ($custom_rate !== null) {
-                $service->custom_rate = floatval($custom_rate);
+            if ($service->is_custom_price === 'yes') {
+                $custom_price = $wpdb->get_var($wpdb->prepare(
+                    "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
+                     WHERE agent_id = %d AND service_id = %d AND location_id = 1",
+                    $agent_id,
+                    $service->id
+                ));
+                
+                if ($custom_price !== null) {
+                    $service->custom_rate = floatval($custom_price);
+                }
             }
         }
         
@@ -913,6 +921,8 @@ class Darsna_Tutor_Backend {
     public function update_agent_services( int $agent_id, array $services, array $service_rates = [] ): bool {
         global $wpdb;
         
+        error_log("Darsna: update_agent_services called with agent_id: {$agent_id}, services: " . print_r($services, true) . ", service_rates: " . print_r($service_rates, true));
+        
         try {
             // Remove existing services
             $wpdb->delete(
@@ -941,9 +951,39 @@ class Darsna_Tutor_Backend {
                     ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
                 );
                 
-                // Store custom rate in agent meta if provided
+                // Store custom rate in custom_prices table if provided
                 if ($custom_rate) {
-                    $this->update_agent_meta($agent_id, "service_{$service_id}_rate", $custom_rate);
+                    // Remove existing custom price
+                    $wpdb->delete(
+                        $wpdb->prefix . 'latepoint_custom_prices',
+                        [
+                            'agent_id' => $agent_id,
+                            'service_id' => $service_id,
+                            'location_id' => 1
+                        ],
+                        ['%d', '%d', '%d']
+                    );
+                    
+                    // Insert new custom price
+                    $wpdb->insert(
+                        $wpdb->prefix . 'latepoint_custom_prices',
+                        [
+                            'agent_id' => $agent_id,
+                            'service_id' => $service_id,
+                            'location_id' => 1,
+                            'is_price_variable' => false,
+                            'price_min' => null,
+                            'price_max' => null,
+                            'charge_amount' => $custom_rate,
+                            'is_deposit_required' => false,
+                            'deposit_amount' => null,
+                            'created_at' => current_time('mysql'),
+                            'updated_at' => current_time('mysql')
+                        ],
+                        ['%d', '%d', '%d', '%d', '%f', '%f', '%f', '%d', '%f', '%s', '%s']
+                    );
+                    
+                    error_log("Darsna: Stored custom price {$custom_rate} for agent {$agent_id}, service {$service_id}");
                 }
             }
             
