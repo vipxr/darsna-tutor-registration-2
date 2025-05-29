@@ -165,7 +165,7 @@ class Darsna_Tutor_Frontend {
         echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
         
         // Generate rate options from $5 to $50
-        for ( $i = 5; $i <= 50; $i++ ) {
+        for ( $i = 5; $i <= 50; $i+=5  ) {
             $selected = selected( $rate, $i, false );
             echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
         }
