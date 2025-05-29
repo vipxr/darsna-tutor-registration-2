@@ -628,16 +628,10 @@ class Darsna_Tutor_Admin {
         
         // Update services and rates
         if (isset($_POST['services']) && isset($_POST['service_rates'])) {
-            error_log("Darsna: AJAX received services: " . print_r($_POST['services'], true) . ", service_rates: " . print_r($_POST['service_rates'], true));
             $backend->update_agent_services($agent_id, $_POST['services'], $_POST['service_rates']);
-        } else {
-            error_log("Darsna: No services or service_rates data received in AJAX");
         }
         
-        // Update schedule
-        if (isset($_POST['schedule'])) {
-            // Set schedule directly using agent_id
-            $backend->set_agent_schedule($agent_id, $_POST['schedule']);
+        // Schedule management removed - users will handle scheduling in LatePoint dashboard
         }
         
         wp_send_json_success('Agent updated successfully');

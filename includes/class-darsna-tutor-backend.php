@@ -130,149 +130,13 @@ class Darsna_Tutor_Backend {
         }
     }
     
-    /**
-     * Fix agent form schedule variables for Darsna agents
-     * This hooks into LatePoint's agent form rendering to ensure proper schedule detection
-     */
-    public function fix_agent_form_schedule_variables($agent) {
-        // Only process if this is a Darsna agent
-        if (!$agent || !isset($agent->id)) {
-            return;
-        }
-        
-        $user_id = $this->get_user_id_by_agent_id($agent->id);
-        if (!$user_id || !user_can($user_id, 'latepoint_agent')) {
-            return;
-        }
-        
-        // Check if agent has work periods
-        global $wpdb;
-        $work_periods_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND service_id = 0 AND location_id = 0 AND custom_date IS NULL",
-            $agent->id
-        ));
-        
-        if ($work_periods_count > 0) {
-            // Get the custom work periods for this agent
-            $custom_work_periods = OsWorkPeriodsHelper::get_work_periods(
-                new \LatePoint\Misc\Filter(['agent_id' => $agent->id, 'exact_match' => true]), 
-                true
-            );
-            
-            // Output JavaScript to ensure the form displays correctly
-            echo '<script type="text/javascript">
-            jQuery(document).ready(function($) {
-                // Force the custom schedule checkbox to be checked
-                var customScheduleCheckbox = $("input[name=\'is_custom_schedule\']");
-                if (customScheduleCheckbox.length && !customScheduleCheckbox.is(":checked")) {
-                    customScheduleCheckbox.prop("checked", true).trigger("change");
-                }
-                
-                // Show the custom schedule wrapper
-                $(".custom-schedule-wrapper").show();
-                
-                // Hide any "using general schedule" messages
-                $(".latepoint-message-subtle").each(function() {
-                    var $message = $(this);
-                    if ($message.text().indexOf("general schedule") !== -1) {
-                        $message.hide();
-                    }
-                });
-                
-                console.log("Darsna: Fixed agent form schedule variables for agent ' . $agent->id . ' with " + ' . count($custom_work_periods) . ' + " work periods");
-            });
-            </script>';
-            
-            // Add custom CSS to ensure proper display
-            echo '<style type="text/css">
-            .custom-schedule-wrapper {
-                display: block !important;
-            }
-            .custom-schedule-wrapper .latepoint-message-subtle {
-                display: none !important;
-            }
-            </style>';
-        }
-    }
+    // fix_agent_form_schedule_variables method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Fix custom schedule checkbox for Darsna agents (fallback method)
-     */
-    public function fix_custom_schedule_checkbox() {
-        // Only run on agent edit pages
-        if (!is_admin() || !isset($_GET['page']) || $_GET['page'] !== 'latepoint_agents' || !isset($_GET['action']) || $_GET['action'] !== 'edit_form') {
-            return;
-        }
-        
-        if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
-            return;
-        }
-        
-        $agent_id = intval($_GET['id']);
-        
-        // Check if this is a Darsna agent
-        $user_id = $this->get_user_id_by_agent_id($agent_id);
-        if (!$user_id || !user_can($user_id, 'latepoint_agent')) {
-            return;
-        }
-        
-        // Check if agent has work periods
-        global $wpdb;
-        $work_periods_count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND service_id = 0 AND location_id = 0 AND custom_date IS NULL",
-            $agent_id
-        ));
-        
-        if ($work_periods_count > 0) {
-            echo '<script type="text/javascript">
-            jQuery(document).ready(function($) {
-                // Wait for the form to load
-                setTimeout(function() {
-                    var customScheduleCheckbox = $("input[name=\'is_custom_schedule\']");
-                    if (customScheduleCheckbox.length && !customScheduleCheckbox.is(":checked")) {
-                        customScheduleCheckbox.prop("checked", true).trigger("change");
-                        console.log("Darsna: Fixed custom schedule checkbox for agent ' . $agent_id . '");
-                    }
-                }, 500);
-            });
-            </script>';
-        }
-    }
+    // fix_custom_schedule_checkbox method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Sync Darsna agent schedule when LatePoint agent is created/updated
-     */
-    public function sync_darsna_agent_schedule($agent) {
-        if (is_object($agent) && isset($agent->wp_user_id)) {
-            $user_id = $agent->wp_user_id;
-            if ($user_id && user_can($user_id, 'latepoint_agent')) {
-                // Verify schedule exists
-                $this->verify_agent_schedule_exists($agent->id);
-            }
-        }
-    }
+    // sync_darsna_agent_schedule method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Verify agent schedule exists and create if missing
-     */
-    private function verify_agent_schedule_exists($agent_id, $date = null) {
-        global $wpdb;
-        
-        // Check if work periods exist for this agent
-        $existing_periods = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND custom_date IS NULL",
-            $agent_id
-        ));
-        
-        if ($existing_periods == 0) {
-            // Get the user ID and recreate schedule
-            $user_id = $this->get_user_id_by_agent_id($agent_id);
-            if ($user_id) {
-                error_log("Recreating schedule for agent_id: $agent_id, user_id: $user_id");
-                $this->set_agent_schedule($user_id, $this->get_default_schedule());
-            }
-        }
-    }
+    // verify_agent_schedule_exists method removed - users will handle scheduling in LatePoint dashboard
     
     /**
      * Get user ID by agent ID
@@ -304,52 +168,9 @@ class Darsna_Tutor_Backend {
         return null;
     }
     
-    /**
-     * Get default schedule for agents
-     */
-    private function get_default_schedule() {
-        return [
-            'monday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'tuesday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'wednesday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'thursday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'friday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'saturday' => ['enabled' => false, 'start_time' => '09:00', 'end_time' => '17:00'],
-            'sunday' => ['enabled' => false, 'start_time' => '09:00', 'end_time' => '17:00']
-        ];
-    }
+    // get_default_schedule method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Debug agent and work period data
-     */
-    public function debug_agent_schedule($agent_id) {
-        global $wpdb;
-        
-        error_log("=== Debugging Agent Schedule ===");
-        error_log("Agent ID: $agent_id");
-        
-        // Check agent exists
-        $agent = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-            $agent_id
-        ));
-        error_log("Agent data: " . print_r($agent, true));
-        
-        // Check work periods
-        $work_periods = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d",
-            $agent_id
-        ));
-        error_log("Work periods: " . print_r($work_periods, true));
-        
-        // Check user role
-        if ($agent && $agent->wp_user_id) {
-            $user = get_userdata($agent->wp_user_id);
-            if ($user) {
-                error_log("User roles: " . print_r($user->roles, true));
-            }
-        }
-    }
+    // debug_agent_schedule method removed - debugging code cleaned up
     
     /**
      * Set COD orders to on-hold status
@@ -369,7 +190,6 @@ class Darsna_Tutor_Backend {
         
         $user_id = $order->get_user_id();
         if ( ! $user_id ) {
-            error_log( "Darsna: No user ID found for order {$order_id}" );
             return;
         }
         
@@ -433,13 +253,11 @@ class Darsna_Tutor_Backend {
         try {
             $tutor_data = $this->get_tutor_data( $user_id );
             if ( ! $tutor_data ) {
-                error_log( "Darsna: No tutor data found for user {$user_id}" );
                 return;
             }
             
             $user = get_user_by( 'ID', $user_id );
             if ( ! $user ) {
-                error_log( "Darsna: User {$user_id} not found" );
                 return;
             }
             
@@ -454,22 +272,18 @@ class Darsna_Tutor_Backend {
                 // Create new agent
                 $agent_id = $this->create_new_agent( $user, $tutor_data );
                 if ( ! $agent_id ) {
-                    error_log( "Darsna: Failed to create agent for user {$user_id}" );
                     return;
                 }
             }
             
-            // Assign services and set schedule
+            // Assign services
             $this->assign_agent_services( $agent_id, $tutor_data );
-            $this->set_agent_schedule( $agent_id, $tutor_data['schedule'] );
             
             // Update user role to LatePoint agent
             $user->add_role( 'latepoint_agent' );
             
-            error_log( "Darsna: Successfully activated agent for user {$user_id}" );
-            
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error activating agent for user {$user_id}: " . $e->getMessage() );
+            // Error handling - agent activation failed
         }
     }
     
@@ -488,10 +302,9 @@ class Darsna_Tutor_Backend {
                     $user->remove_role( 'latepoint_agent' );
                 }
                 
-                error_log( "Darsna: Deactivated agent for user {$user_id}" );
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error deactivating agent for user {$user_id}: " . $e->getMessage() );
+            // Error handling - agent deactivation failed
         }
     }
     
@@ -520,10 +333,9 @@ class Darsna_Tutor_Backend {
                     $user->remove_role( 'latepoint_agent' );
                 }
                 
-                error_log( "Darsna: Completely removed agent for user {$user_id}" );
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error removing agent for user {$user_id}: " . $e->getMessage() );
+            // Error handling - agent removal failed
         }
     }
     
@@ -562,7 +374,6 @@ class Darsna_Tutor_Backend {
                 return $result ? $wpdb->insert_id : null;
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error creating agent: " . $e->getMessage() );
             return null;
         }
     }
@@ -596,7 +407,7 @@ class Darsna_Tutor_Backend {
                 return $result !== false;
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error updating agent status: " . $e->getMessage() );
+            // Error handling - status update failed
         }
         
         return false;
@@ -609,7 +420,6 @@ class Darsna_Tutor_Backend {
         try {
             // Check if LatePoint AgentsServicesRepository is available
             if ( ! class_exists( '\OsRepositories\AgentsServicesRepository' ) ) {
-                error_log( "Darsna: LatePoint AgentsServicesRepository not found, falling back to direct database" );
                 return $this->assign_agent_services_fallback( $agent_id, $tutor_data );
             }
             
@@ -634,7 +444,6 @@ class Darsna_Tutor_Backend {
             
             return (bool) $success;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error assigning services via API: " . $e->getMessage() );
             return $this->assign_agent_services_fallback( $agent_id, $tutor_data );
         }
     }
@@ -666,7 +475,6 @@ class Darsna_Tutor_Backend {
                 
                 if ( $result === false ) {
                     $success = false;
-                    error_log( "Darsna: Failed to insert service assignment for service_id: {$service['service_id']}" );
                 }
                 
                 // Also insert custom pricing if needed
@@ -677,225 +485,15 @@ class Darsna_Tutor_Backend {
             
             return $success;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error in fallback assignment: " . $e->getMessage() );
             return false;
         }
     }
     
-    /**
-     * Set an agent's weekly work periods via LatePoint's model
-     */
-    public function set_agent_schedule( int $agent_id, array $schedule ): bool {
-		// Debug logging to confirm method is called
-		error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}" );
-		error_log( "DEBUG: Full schedule data: " . print_r( $schedule, true ) );
-
-		// Check if we have any enabled days
-		$enabled_days = [];
-		foreach ( ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as $day ) {
-			if ( isset( $schedule[$day] ) && ( $schedule[$day]['enabled'] === true || $schedule[$day]['enabled'] === 'true' ) ) {
-				$enabled_days[] = $day;
-				error_log( "Darsna: Found enabled day: {$day}" );
-			}
-		}
-
-		// 1) need at least one enabled day
-		if ( empty( $enabled_days ) ) {
-			error_log( "Darsna: No enabled days found in schedule" );
-			return false;
-		}
-
-        // 2) make sure the model exists (correct namespace)
-        if ( ! class_exists( 'OsWorkPeriodModel' ) ) {
-            error_log( "Darsna: OsWorkPeriodModel not found, falling back" );
-            return $this->set_agent_schedule_fallback( $agent_id, $schedule );
-        }
-
-        try {
-            error_log( "Darsna: Setting schedule for agent_id={$agent_id}" );
-
-            $location_id = $schedule['location_id'] ?? 1;
-
-            // 4) delete old work periods - use proper LatePoint method
-            global $wpdb;
-            $wpdb->delete(
-                $wpdb->prefix . 'latepoint_work_periods',
-                ['agent_id' => $agent_id],
-                ['%d']
-            );
-            error_log( "Darsna: Deleted existing work periods for agent {$agent_id}" );
-
-            // 5) handle enabled days - map day names to numbers
-            $day_map = [
-                'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
-                'friday' => 5, 'saturday' => 6, 'sunday' => 7
-            ];
-
-            foreach ( $enabled_days as $day ) {
-                $day_data = $schedule[$day];
-                $week_day_number = $day_map[$day];
-                
-                // Get start/end times for this specific day
-                $start = $this->time_to_minutes( $day_data['start_time'] ?? '09:00' );
-                $end   = $this->time_to_minutes( $day_data['end_time'] ?? '17:00' );
-
-                error_log( "Darsna: Processing day '{$day}' -> weekday {$week_day_number}, times {$start}-{$end}" );
-                
-                // Create new work period instance
-                $work_period = new OsWorkPeriodModel();
-                
-                // Set properties directly first to ensure they exist
-                $work_period->agent_id = $agent_id;
-                $work_period->service_id = 0; // all services
-                $work_period->location_id = $location_id;
-                $work_period->week_day = $week_day_number;
-                $work_period->start_time = $start;
-                $work_period->end_time = $end;
-                $work_period->chain_id = substr(wp_generate_uuid4(), 0, 20); // Truncate to 20 chars for varchar(20)
-                $work_period->custom_date = null; // For regular weekly schedule
-                
-                // Also set via set_data method for compatibility
-                $work_period_data = [
-                    'agent_id' => $agent_id,
-                    'service_id' => 0,
-                    'location_id' => $location_id,
-                    'week_day' => $week_day_number,
-                    'start_time' => $start,
-                    'end_time' => $end,
-                    'chain_id' => substr(wp_generate_uuid4(), 0, 20),
-                    'custom_date' => null
-                ];
-                
-                $work_period->set_data($work_period_data);
-                
-                // Debug: Check if week_day is properly set
-                error_log( "Darsna: Before save - week_day: {$work_period->week_day}, agent_id: {$work_period->agent_id}" );
-                
-                $save_result = $work_period->save();
-                
-                if ( $save_result ) {
-                    error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
-                } else {
-                    $error_messages = $work_period->get_error_messages();
-                    $all_errors = $work_period->get_error_messages(); // Get all error messages
-                    $validation_errors = $work_period->get_error_messages('validation'); // Get validation specific errors
-                    error_log( "Darsna: Failed to save work period for day {$day}. All errors: " . print_r($all_errors, true) );
-                    error_log( "Darsna: Validation errors: " . print_r($validation_errors, true) );
-                    error_log( "Darsna: Work period data: " . print_r($work_period_data, true) );
-                    
-                    // Fallback to direct database insertion for this specific day
-                    error_log( "Darsna: Failed to save work period for day {$day} using OsWorkPeriodModel, trying fallback method" );
-                    $this->insert_work_period_direct( $agent_id, $week_day_number, $start, $end, $location_id );
-                }
-            }
-
-            error_log( "Darsna: Successfully set schedule for agent_id={$agent_id}" );
-            return true;
-
-        } catch ( Exception $e ) {
-            error_log( "Darsna: Model error: " . $e->getMessage() );
-            return $this->set_agent_schedule_fallback( $agent_id, $schedule );
-        }
-    }
+    // set_agent_schedule method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Fallback method for direct database schedule setting
-     */
-    private function set_agent_schedule_fallback( int $agent_id, array $schedule ): bool {
-        if ( empty( $schedule['days'] ) ) {
-            error_log( "Darsna: Fallback - No days provided" );
-            return false;
-        }
-        
-        global $wpdb;
-        $table = $wpdb->prefix . 'latepoint_work_periods';
-        
-        // Clear existing schedule
-        $wpdb->delete( $table, [ 'agent_id' => $agent_id ], [ '%d' ] );
-        
-        // Day mapping - same as main method
-        $day_map = [
-            'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
-            'fri' => 5, 'sat' => 6, 'sun' => 7,
-            'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
-            'friday' => 5, 'saturday' => 6, 'sunday' => 7
-        ];
-        
-        $start_time = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
-        $end_time = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
-        
-        // Insert new schedule - handle both numeric and string days
-        foreach ( $schedule['days'] as $day ) {
-            $week_day_number = null;
-            
-            // Handle numeric days (1-7)
-            if ( is_numeric( $day ) ) {
-                $day_num = intval( $day );
-                if ( $day_num >= 1 && $day_num <= 7 ) {
-                    $week_day_number = $day_num;
-                }
-            }
-            // Handle string days (mon, tue, etc.)
-            else if ( isset( $day_map[ strtolower( $day ) ] ) ) {
-                $week_day_number = $day_map[ strtolower( $day ) ];
-            }
-
-            if ( ! $week_day_number ) {
-                error_log( "Darsna: Fallback - Skipping invalid day '{$day}'" );
-                continue;
-            }
-
-            $result = $wpdb->insert( $table, [
-                'agent_id' => $agent_id,
-                'service_id' => 0, // 0 means all services
-                'location_id' => $schedule['location_id'] ?? 1,
-                'start_time' => $start_time,
-                'end_time' => $end_time,
-                'week_day' => $week_day_number,
-                'chain_id' => wp_generate_uuid4(),
-                'custom_date' => null,
-                'created_at' => current_time( 'mysql' ),
-                'updated_at' => current_time( 'mysql' )
-            ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ] );
-            
-            if ( $result ) {
-                error_log( "Darsna: Fallback - Successfully inserted work period for day {$day} -> weekday {$week_day_number}" );
-            } else {
-                error_log( "Darsna: Fallback - Failed to insert work period for day {$day}: " . $wpdb->last_error );
-            }
-        }
-        
-        return true;
-    }
+    // set_agent_schedule_fallback method removed - users will handle scheduling in LatePoint dashboard
     
-    /**
-     * Direct database insertion for a single work period
-     */
-    private function insert_work_period_direct( int $agent_id, int $week_day_number, int $start_time, int $end_time, int $location_id ): bool {
-        global $wpdb;
-        $table = $wpdb->prefix . 'latepoint_work_periods';
-        
-        $result = $wpdb->insert( $table, [
-            'agent_id' => $agent_id,
-            'service_id' => 0, // 0 means all services
-            'location_id' => $location_id,
-            'start_time' => $start_time,
-            'end_time' => $end_time,
-            'week_day' => $week_day_number,
-            'chain_id' => null, // Set to null to avoid length issues
-            'custom_date' => null,
-            'created_at' => current_time( 'mysql' ),
-            'updated_at' => current_time( 'mysql' )
-        ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ] );
-        
-        if ( $result ) {
-            error_log( "Darsna: Direct insert - Successfully inserted work period for weekday {$week_day_number}" );
-            return true;
-        } else {
-            error_log( "Darsna: Direct insert - Failed to insert work period for weekday {$week_day_number}: " . $wpdb->last_error );
-            return false;
-        }
-    }
+    // insert_work_period_direct method removed - users will handle scheduling in LatePoint dashboard
     
     /**
      * Get existing agent by user ID
@@ -905,38 +503,23 @@ class Darsna_Tutor_Backend {
         
         if ( ! isset( self::$cache[ $cache_key ] ) ) {
             try {
-                error_log( "Darsna: Looking for agent with wp_user_id: {$user_id}" );
-                
                 // Try v5 Repository first
                 if ( class_exists( '\LatePoint\App\Repositories\AgentRepository' ) ) {
-                    error_log( "Darsna: Using LatePoint v5 Repository" );
                     $agents = \LatePoint\App\Repositories\AgentRepository::where( [ 'wp_user_id' => $user_id ] );
-                    error_log( "Darsna: Found " . count($agents) . " agents with wp_user_id {$user_id}" );
                     self::$cache[ $cache_key ] = $agents[0] ?? null;
                 } else {
-                    error_log( "Darsna: Using direct database query" );
                     // Fallback to direct database query
                     global $wpdb;
                     $table_name = $wpdb->prefix . 'latepoint_agents';
-                    error_log( "Darsna: Querying table: {$table_name}" );
                     
                     $agent = $wpdb->get_row(
                         $wpdb->prepare( "SELECT * FROM {$table_name} WHERE wp_user_id = %d", $user_id )
                     );
                     
-                    if ( $wpdb->last_error ) {
-                        error_log( "Darsna: Database error: " . $wpdb->last_error );
-                    }
-                    
-                    error_log( "Darsna: Direct query result: " . ( $agent ? "Found agent ID {$agent->id}" : "No agent found" ) );
                     self::$cache[ $cache_key ] = $agent;
                 }
                 
-                $result = self::$cache[ $cache_key ];
-                error_log( "Darsna: Final result - Got agent id=" . ( $result ? $result->id : 'NULL' ) );
-                
             } catch ( Exception $e ) {
-                error_log( "Darsna: Error fetching agent: " . $e->getMessage() );
                 self::$cache[ $cache_key ] = null;
             }
         }
@@ -970,7 +553,6 @@ class Darsna_Tutor_Backend {
     private function get_tutor_data( int $user_id ): ?array {
         $order = $this->get_user_order( $user_id );
         if ( ! $order ) {
-            error_log( "Darsna: No order found for user ID: {$user_id}" );
             return null;
         }
         
@@ -991,7 +573,6 @@ class Darsna_Tutor_Backend {
         $hourly_rate = $order->get_meta( '_tutor_hourly_rate' );
         
         if ( ! $service_id || ! $hourly_rate ) {
-            error_log( "Darsna: Missing tutor meta data for user {$user_id} - service_id: {$service_id}, rate: {$hourly_rate}" );
             return null;
         }
         
@@ -1105,7 +686,7 @@ class Darsna_Tutor_Backend {
                 return $agent ? $agent->toArray() : null;
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Error handling - repository API failed
         }
         
         // Fallback to direct database query
@@ -1139,7 +720,6 @@ class Darsna_Tutor_Backend {
                     }
                     
                     // Get custom rate from custom_prices table if available
-                    error_log("Darsna: Agent service is_custom_price value: " . ($agent_service->is_custom_price ?? 'NULL'));
                     
                     // Check if custom pricing is enabled (handle both string and integer values)
                     $has_custom_price = ($agent_service->is_custom_price === 'yes' || $agent_service->is_custom_price === '1' || $agent_service->is_custom_price === 1);
@@ -1152,10 +732,8 @@ class Darsna_Tutor_Backend {
                             $agent_id,
                             $agent_service->service_id
                         ));
-                        error_log("Darsna: Custom price query for agent {$agent_id}, service {$agent_service->service_id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
                         if ( $custom_price !== null ) {
                             $service_data['custom_rate'] = floatval( $custom_price );
-                            error_log("Darsna: Set custom_rate to: " . $service_data['custom_rate']);
                         }
                     } else {
                         // Always try to get custom price as fallback
@@ -1168,7 +746,7 @@ class Darsna_Tutor_Backend {
                         ));
                         if ( $custom_price !== null ) {
                             $service_data['custom_rate'] = floatval( $custom_price );
-                            error_log("Darsna: Fallback found custom_rate: " . $service_data['custom_rate']);
+
                         }
                     }
                     
@@ -1178,7 +756,7 @@ class Darsna_Tutor_Backend {
                 return $services;
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Error handling - repository API failed
         }
         
         // Fallback to direct database query
@@ -1197,8 +775,6 @@ class Darsna_Tutor_Backend {
         
         // Get custom rates from custom_prices table
         foreach ($services as $service) {
-            error_log("Darsna: Fallback service is_custom_price value: " . ($service->is_custom_price ?? 'NULL'));
-            
             // Check if custom pricing is enabled (handle both string and integer values)
             $has_custom_price = ($service->is_custom_price === 'yes' || $service->is_custom_price === '1' || $service->is_custom_price === 1);
             
@@ -1210,10 +786,8 @@ class Darsna_Tutor_Backend {
                     $service->id
                 ));
                 
-                error_log("Darsna: Fallback custom price query for agent {$agent_id}, service {$service->id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
                 if ($custom_price !== null) {
                     $service->custom_rate = floatval($custom_price);
-                    error_log("Darsna: Fallback set custom_rate to: " . $service->custom_rate);
                 }
             } else {
                 // Always try to get custom price as fallback
@@ -1226,57 +800,13 @@ class Darsna_Tutor_Backend {
                 
                 if ($custom_price !== null) {
                     $service->custom_rate = floatval($custom_price);
-                    error_log("Darsna: Fallback found custom_rate: " . $service->custom_rate);
                 }
             }
         }
-        
-        error_log("Darsna: Final services data for agent {$agent_id}: " . json_encode($services));
         return $services;
     }
     
-    /**
-     * Get agent schedule from meta data
-     */
-    public function get_agent_schedule( int $agent_id ): array {
-        global $wpdb;
-        
-        // Get work periods from latepoint_work_periods table
-        $work_periods = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND custom_date IS NULL ORDER BY week_day, start_time",
-            $agent_id
-        ));
-        
-        $schedule = [];
-        $days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']; // 0-6 mapping
-        $day_names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        
-        // Initialize default schedule
-        foreach ( $day_names as $day ) {
-            $schedule[$day] = [
-                'enabled' => false,
-                'start_time' => '09:00',
-                'end_time' => '17:00'
-            ];
-        }
-        
-        // Parse work periods data
-        foreach ( $work_periods as $work_period ) {
-            $week_day = intval($work_period->week_day);
-            if ( $week_day >= 0 && $week_day <= 6 ) {
-                $day_name = $day_names[$week_day];
-                $schedule[$day_name] = [
-                    'enabled' => true,
-                    'start_time' => $this->minutes_to_time( intval($work_period->start_time) ),
-                    'end_time' => $this->minutes_to_time( intval($work_period->end_time) )
-                ];
-            }
-        }
-        
-        error_log( "Darsna: Retrieved schedule for agent {$agent_id}: " . print_r($schedule, true) );
-        
-        return $schedule;
-    }
+    // get_agent_schedule method removed - users will handle scheduling in LatePoint dashboard
     
     /**
      * Convert minutes to HH:MM format
@@ -1293,7 +823,7 @@ class Darsna_Tutor_Backend {
     public function update_agent_services( int $agent_id, array $services, array $service_rates = [] ): bool {
         global $wpdb;
         
-        error_log("Darsna: update_agent_services called with agent_id: {$agent_id}, services: " . print_r($services, true) . ", service_rates: " . print_r($service_rates, true));
+
         
         try {
             // Remove existing services
@@ -1355,13 +885,12 @@ class Darsna_Tutor_Backend {
                         ['%d', '%d', '%d', '%d', '%f', '%f', '%f', '%d', '%f', '%s', '%s']
                     );
                     
-                    error_log("Darsna: Stored custom price {$custom_rate} for agent {$agent_id}, service {$service_id}");
+
                 }
             }
             
             return true;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error updating agent services: " . $e->getMessage() );
             return false;
         }
     }
@@ -1379,7 +908,7 @@ class Darsna_Tutor_Backend {
                 }
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Error handling - repository API failed
         }
         
         // Fallback to direct database query
@@ -1430,13 +959,11 @@ class Darsna_Tutor_Backend {
             );
             
             if ( $result !== false ) {
-                error_log( "Darsna: Stored custom price {$custom_rate} for agent {$agent_id}, service {$service_id}" );
                 return true;
             }
             
             return false;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error setting custom price: " . $e->getMessage() );
             return false;
         }
     }
@@ -1455,7 +982,7 @@ class Darsna_Tutor_Backend {
                 }
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Error handling - repository API failed
         }
         
         // Fallback to direct database query
@@ -1493,7 +1020,6 @@ class Darsna_Tutor_Backend {
             
             return $result !== false;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error updating agent meta: " . $e->getMessage() );
             return false;
         }
     }
@@ -1519,7 +1045,7 @@ class Darsna_Tutor_Backend {
                 }
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Error handling - repository API failed
         }
         
         // Fallback to direct database query
@@ -1547,7 +1073,6 @@ class Darsna_Tutor_Backend {
             
             return $result !== false;
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error updating agent basic info: " . $e->getMessage() );
             return false;
         }
     }

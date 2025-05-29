@@ -431,12 +431,11 @@ class Darsna_Tutor_Frontend {
             ));
             
             if ( $custom_price !== null && $custom_price > 0 ) {
-                error_log( "Darsna: Applied custom pricing {$custom_price} for agent {$booking->agent_id}, service {$booking->service_id}" );
                 return $custom_price;
             }
             
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error applying dynamic pricing: " . $e->getMessage() );
+            // Error handling - pricing fallback to default
         }
         
         return $amount;
@@ -459,7 +458,6 @@ class Darsna_Tutor_Frontend {
                     ) ?: [];
                 }
             } catch ( Exception $e ) {
-                error_log( "Darsna: Error fetching services: " . $e->getMessage() );
                 self::$cache['services'] = [];
             }
         }
