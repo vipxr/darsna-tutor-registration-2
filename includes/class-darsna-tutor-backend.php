@@ -378,8 +378,9 @@ class Darsna_Tutor_Backend {
 		// Check if we have any enabled days
 		$enabled_days = [];
 		foreach ( ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as $day ) {
-			if ( isset( $schedule[$day] ) && $schedule[$day]['enabled'] === true ) {
+			if ( isset( $schedule[$day] ) && ( $schedule[$day]['enabled'] === true || $schedule[$day]['enabled'] === 'true' ) ) {
 				$enabled_days[] = $day;
+				error_log( "Darsna: Found enabled day: {$day}" );
 			}
 		}
 
