@@ -443,14 +443,8 @@ class Darsna_Tutor_Backend {
                     error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
                     error_log( "Darsna: Failed to save work period for day {$day} using OsWorkPeriodModel, trying fallback method" );
-                    // Try fallback method for this specific day
-                    $fallback_schedule = [
-                        'days' => [$week_day_number],
-                        'start' => $day_data['start_time'],
-                        'end' => $day_data['end_time'],
-                        'location_id' => $location_id
-                    ];
-                    $this->set_agent_schedule_fallback( $agent_id, $fallback_schedule );
+                    // Fallback to direct database insertion for this specific day
+                    $this->insert_work_period_direct( $agent_id, $week_day_number, $start, $end, $location_id );
                 }
             }
 
@@ -531,6 +525,35 @@ class Darsna_Tutor_Backend {
         }
         
         return true;
+    }
+    
+    /**
+     * Direct database insertion for a single work period
+     */
+    private function insert_work_period_direct( int $agent_id, int $week_day_number, int $start_time, int $end_time, int $location_id ): bool {
+        global $wpdb;
+        $table = $wpdb->prefix . 'latepoint_work_periods';
+        
+        $result = $wpdb->insert( $table, [
+            'agent_id' => $agent_id,
+            'service_id' => 0, // 0 means all services
+            'location_id' => $location_id,
+            'start_time' => $start_time,
+            'end_time' => $end_time,
+            'week_day' => $week_day_number,
+            'chain_id' => null, // Set to null to avoid length issues
+            'custom_date' => null,
+            'created_at' => current_time( 'mysql' ),
+            'updated_at' => current_time( 'mysql' )
+        ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ] );
+        
+        if ( $result ) {
+            error_log( "Darsna: Direct insert - Successfully inserted work period for weekday {$week_day_number}" );
+            return true;
+        } else {
+            error_log( "Darsna: Direct insert - Failed to insert work period for weekday {$week_day_number}: " . $wpdb->last_error );
+            return false;
+        }
     }
     
     /**
