@@ -145,14 +145,14 @@ class Darsna_Tutor_Tutors_Page {
         foreach ($results as &$tutor) {
             // Get additional data from WordPress user meta if wp_user_id exists
             if (isset($tutor->wp_user_id)) {
-                $tutor->country = get_user_meta($tutor->wp_user_id, 'billing_country', true) ?: '';
-                $tutor->city = get_user_meta($tutor->wp_user_id, 'billing_city', true) ?: '';
+                $country_code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
+                $countries = WC()->countries;
+                $tutor->country = $countries->get_country_name( $country_code ) ?: $country_code;
                 $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
                 $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
                 $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
             } else {
                 $tutor->country = '';
-                $tutor->city = '';
                 $tutor->experience = '';
                 $tutor->education = '';
                 $tutor->languages = '';
@@ -227,11 +227,7 @@ class Darsna_Tutor_Tutors_Page {
                 
                 <?php if (!empty($tutor->country)): ?>
                     <div class="tutor-location">
-                        <span class="location-icon">📍</span>
                         <?php echo esc_html($tutor->country); ?>
-                        <?php if (!empty($tutor->city)): ?>
-                            , <?php echo esc_html($tutor->city); ?>
-                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
                 
@@ -647,8 +643,9 @@ class Darsna_Tutor_Tutors_Page {
         $tutor = $wpdb->get_row($query);
         
         if ($tutor && isset($tutor->wp_user_id)) {
-            $tutor->country = get_user_meta($tutor->wp_user_id, 'billing_country', true) ?: '';
-            $tutor->city = get_user_meta($tutor->wp_user_id, 'billing_city', true) ?: '';
+            $country_code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
+            $countries = WC()->countries;
+            $tutor->country = $countries->get_country_name( $country_code ) ?: $country_code;
             $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
             $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
             $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
@@ -678,11 +675,7 @@ class Darsna_Tutor_Tutors_Page {
                 <h2><?php echo esc_html($full_name); ?></h2>
                 <?php if (!empty($tutor->country)): ?>
                     <div class="enhanced-popup-location">
-                        <span class="location-icon">📍</span>
                         <?php echo esc_html($tutor->country); ?>
-                        <?php if (!empty($tutor->city)): ?>
-                            , <?php echo esc_html($tutor->city); ?>
-                        <?php endif; ?>
                     </div>
                 <?php endif; ?>
             </div>
