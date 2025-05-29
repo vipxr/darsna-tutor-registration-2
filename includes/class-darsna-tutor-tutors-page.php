@@ -125,7 +125,7 @@ class Darsna_Tutor_Tutors_Page {
                 MIN(COALESCE(cp.charge_amount, s.charge_amount)) as min_price,
                 MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price
             FROM {$wpdb->prefix}latepoint_agents a
-            LEFT JOIN {$wpdb->prefix}latepoint_agent_services ags ON a.id = ags.agent_id
+            LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
             LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
             LEFT JOIN {$wpdb->prefix}latepoint_custom_prices cp ON (
                 cp.agent_id = a.id AND 
