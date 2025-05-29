@@ -50,6 +50,163 @@ class Darsna_Tutor_Backend {
         
         // CRITICAL: Register the custom action hook
         add_action( 'darsna_activate_agent', [ $this, 'activate_tutor_agent' ], 10, 2 );
+        
+        // LatePoint integration hooks
+        $this->setup_latepoint_hooks();
+    }
+    
+    /**
+     * Setup LatePoint integration hooks
+     */
+    private function setup_latepoint_hooks(): void {
+        // Hook into LatePoint's calendar rendering
+        add_action('latepoint_calendar_daily_timeline', [$this, 'ensure_agent_schedule_visibility'], 10, 2);
+        
+        // Hook into model queries to include Darsna agents
+        add_filter('latepoint_get_results_as_models', [$this, 'filter_work_period_results'], 10, 1);
+        
+        // Hook into agent creation/update
+        add_action('latepoint_agent_created', [$this, 'sync_darsna_agent_schedule'], 10, 1);
+        add_action('latepoint_agent_updated', [$this, 'sync_darsna_agent_schedule'], 10, 1);
+    }
+    
+    /**
+     * Ensure Darsna agent schedules are visible in calendar
+     */
+    public function ensure_agent_schedule_visibility($target_date, $params) {
+        if (isset($params['agent_id'])) {
+            $agent_id = $params['agent_id'];
+            
+            // Check if this is a Darsna-created agent
+            $user_id = $this->get_user_id_by_agent_id($agent_id);
+            if ($user_id && user_can($user_id, 'latepoint_agent')) {
+                // Ensure work periods exist for this agent
+                $this->verify_agent_schedule_exists($agent_id, $target_date);
+            }
+        }
+    }
+    
+    /**
+     * Filter work period results to ensure Darsna agents are included
+     */
+    public function filter_work_period_results($model) {
+        // Only process OsWorkPeriodModel results
+        if (class_exists('\\LatePoint\\App\\Models\\WorkPeriod') && $model instanceof \LatePoint\App\Models\WorkPeriod) {
+            // Additional processing if needed
+        }
+        return $model;
+    }
+    
+    /**
+     * Sync Darsna agent schedule when LatePoint agent is created/updated
+     */
+    public function sync_darsna_agent_schedule($agent) {
+        if (is_object($agent) && isset($agent->external_id)) {
+            $user_id = $agent->external_id;
+            if ($user_id && user_can($user_id, 'latepoint_agent')) {
+                // Verify schedule exists
+                $this->verify_agent_schedule_exists($agent->id);
+            }
+        }
+    }
+    
+    /**
+     * Verify agent schedule exists and create if missing
+     */
+    private function verify_agent_schedule_exists($agent_id, $date = null) {
+        global $wpdb;
+        
+        // Check if work periods exist for this agent
+        $existing_periods = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND custom_date IS NULL",
+            $agent_id
+        ));
+        
+        if ($existing_periods == 0) {
+            // Get the user ID and recreate schedule
+            $user_id = $this->get_user_id_by_agent_id($agent_id);
+            if ($user_id) {
+                error_log("Recreating schedule for agent_id: $agent_id, user_id: $user_id");
+                $this->set_agent_schedule($user_id, $this->get_default_schedule());
+            }
+        }
+    }
+    
+    /**
+     * Get user ID by agent ID
+     */
+    private function get_user_id_by_agent_id($agent_id) {
+        global $wpdb;
+        
+        // Try to find user by agent external_id first
+        $user_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT external_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $agent_id
+        ));
+        
+        if ($user_id && get_userdata($user_id)) {
+            return $user_id;
+        }
+        
+        // Fallback: search by agent name/email matching
+        $agent_data = $wpdb->get_row($wpdb->prepare(
+            "SELECT first_name, last_name, email FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $agent_id
+        ));
+        
+        if ($agent_data) {
+            $user = get_user_by('email', $agent_data->email);
+            return $user ? $user->ID : null;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get default schedule for agents
+     */
+    private function get_default_schedule() {
+        return [
+            'monday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'tuesday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'wednesday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'thursday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'friday' => ['enabled' => true, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'saturday' => ['enabled' => false, 'start_time' => '09:00', 'end_time' => '17:00'],
+            'sunday' => ['enabled' => false, 'start_time' => '09:00', 'end_time' => '17:00']
+        ];
+    }
+    
+    /**
+     * Debug agent and work period data
+     */
+    public function debug_agent_schedule($agent_id) {
+        global $wpdb;
+        
+        error_log("=== Debugging Agent Schedule ===");
+        error_log("Agent ID: $agent_id");
+        
+        // Check agent exists
+        $agent = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $agent_id
+        ));
+        error_log("Agent data: " . print_r($agent, true));
+        
+        // Check work periods
+        $work_periods = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d",
+            $agent_id
+        ));
+        error_log("Work periods: " . print_r($work_periods, true));
+        
+        // Check user role
+        if ($agent && $agent->external_id) {
+            $user = get_userdata($agent->external_id);
+            if ($user) {
+                error_log("User roles: " . print_r($user->roles, true));
+            }
+        }
     }
     
     /**
