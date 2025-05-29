@@ -90,6 +90,9 @@ class Darsna_Tutor_Frontend {
         // Service selection with rates
         $this->render_service_field();
         
+        // Urgent help option
+        $this->render_urgent_help_field();
+        
         // Bio field
         $this->render_bio_field();
         
@@ -204,6 +207,24 @@ class Darsna_Tutor_Frontend {
     }
     
     /**
+     * Render urgent help field
+     */
+    private function render_urgent_help_field(): void {
+        $urgent_help_enabled = isset( $_POST['tutor_urgent_help'] ) ? 1 : 0;
+        
+        echo '<div class="urgent-help-section">';
+        echo '<h4>' . __( 'Urgent Help Extra Pricing', 'darsna-tutor' ) . '</h4>';
+        echo '<p class="form-row form-row-wide">';
+        echo '<label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">';
+        echo '<input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="tutor_urgent_help" id="tutor_urgent_help" value="1"' . checked( $urgent_help_enabled, 1, false ) . ' />';
+        echo '<span class="woocommerce-form__label-text">' . __( 'Enable Urgent Help Service', 'darsna-tutor' ) . '</span>';
+        echo '</label>';
+        echo '</p>';
+        echo '<p class="description urgent-help-description">' . __( 'Enabling this option guarantees that your service will be booked within six hours at twice the normal price for your selected subjects.', 'darsna-tutor' ) . '</p>';
+        echo '</div>';
+    }
+    
+    /**
      * Render bio field
      */
     private function render_bio_field(): void {
@@ -291,6 +312,7 @@ class Darsna_Tutor_Frontend {
         
         $order->update_meta_data( '_tutor_services', $services_data );
         $order->update_meta_data( '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ?? '' ) );
+        $order->update_meta_data( '_tutor_urgent_help', isset( $_POST['tutor_urgent_help'] ) ? 1 : 0 );
         
         // Schedule data saving removed - handled by LatePoint
         $order->save();
@@ -350,22 +372,18 @@ class Darsna_Tutor_Frontend {
                 $booking->service_id
             ));
             
-            // If booking is within 6 hours, apply urgent pricing for any service
+            // If booking is within 6 hours, check if agent has urgent help enabled
             if ( $is_urgent_booking ) {
-                // Get urgent rate from agent's custom pricing (stored as a separate meta or custom field)
-                $urgent_rate = $wpdb->get_var( $wpdb->prepare(
+                // Check if agent has urgent help enabled
+                $urgent_help_enabled = $wpdb->get_var( $wpdb->prepare(
                     "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
-                     WHERE object_id = %d AND meta_key = 'urgent_help_rate'",
+                     WHERE object_id = %d AND meta_key = 'urgent_help_enabled'",
                     $booking->agent_id
                 ));
                 
-                if ( $urgent_rate !== null && $urgent_rate > 0 ) {
-                    return floatval( $urgent_rate );
-                }
-                
-                // Fallback: apply 50% surcharge to regular rate if urgent rate not set
-                if ( $custom_price !== null && $custom_price > 0 ) {
-                    return $custom_price * 1.5;
+                // If urgent help is enabled, apply double pricing
+                if ( $urgent_help_enabled == 1 && $custom_price !== null && $custom_price > 0 ) {
+                    return $custom_price * 2;
                 }
             }
             

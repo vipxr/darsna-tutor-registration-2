@@ -135,7 +135,7 @@ class Darsna_Tutor_Tutors_Page {
                 GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices,
                 MIN(COALESCE(cp.charge_amount, s.charge_amount)) as min_price,
                 MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price,
-                am.meta_value as urgent_rate
+                am.meta_value as urgent_help_enabled
             FROM {$wpdb->prefix}latepoint_agents a
             LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
             LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
@@ -145,7 +145,7 @@ class Darsna_Tutor_Tutors_Page {
             )
             LEFT JOIN {$wpdb->prefix}latepoint_agent_meta am ON (
                 am.object_id = a.id AND 
-                am.meta_key = 'urgent_help_rate'
+                am.meta_key = 'urgent_help_enabled'
             )
             WHERE a.status = 'active'
             GROUP BY a.id
@@ -228,12 +228,12 @@ class Darsna_Tutor_Tutors_Page {
              data-min-price="<?php echo esc_attr($tutor->min_price); ?>"
              data-max-price="<?php echo esc_attr($tutor->max_price); ?>"
              data-name="<?php echo esc_attr(strtolower($full_name)); ?>"
-             data-urgent-help="<?php echo !empty($tutor->urgent_rate) && $tutor->urgent_rate > 0 ? 'yes' : 'no'; ?>">
+             data-urgent-help="<?php echo !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1 ? 'yes' : 'no'; ?>">
             
             <div class="tutor-avatar">
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="avatar-img">
                 <div class="online-status"></div>
-                <?php if (!empty($tutor->urgent_rate) && $tutor->urgent_rate > 0): ?>
+                <?php if (!empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1): ?>
                     <div class="urgent-help-badge" title="Offers urgent help within 6 hours">
                         <span class="urgent-icon">⚡</span>
                         <span class="urgent-text">Urgent Help</span>
@@ -445,7 +445,7 @@ class Darsna_Tutor_Tutors_Page {
             
             // Urgent help filter
             if (!empty($urgent_help)) {
-                $has_urgent_help = !empty($tutor->urgent_rate) && $tutor->urgent_rate > 0;
+                $has_urgent_help = !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1;
                 if ($urgent_help === 'yes' && !$has_urgent_help) {
                     return false;
                 }

@@ -180,6 +180,36 @@
     font-weight: 500;
 }
 
+/* Urgent Help Section Styling */
+.urgent-help-section {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 5px;
+}
+
+.urgent-help-section h4 {
+    margin-top: 0;
+    color: #0073aa;
+    font-size: 1.1em;
+}
+
+.urgent-help-description {
+    margin-top: 10px;
+    font-style: italic;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.urgent-help-section .checkbox {
+    margin-bottom: 10px;
+}
+
+.urgent-help-section input[type="checkbox"] {
+    margin-right: 8px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .service-row {

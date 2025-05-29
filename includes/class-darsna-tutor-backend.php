@@ -204,6 +204,11 @@ class Darsna_Tutor_Backend {
             // Assign services
             $this->assign_agent_services( $agent_id, $tutor_data );
             
+            // Save urgent help metadata
+            if ( isset( $tutor_data['urgent_help'] ) ) {
+                $this->set_urgent_help_enabled( $agent_id, $tutor_data['urgent_help'] );
+            }
+            
             // Update user role to LatePoint agent
             $user->add_role( 'latepoint_agent' );
             
@@ -493,7 +498,8 @@ class Darsna_Tutor_Backend {
             // New multi-service format
             return [
                 'services' => $services_data,
-                'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) )
+                'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
+                'urgent_help' => (int) $order->get_meta( '_tutor_urgent_help' )
                 // Schedule data removed - handled by LatePoint
             ];
         }
@@ -512,7 +518,8 @@ class Darsna_Tutor_Backend {
                 'service_id' => (int) $service_id,
                 'rate' => (float) $hourly_rate
             ]],
-            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) )
+            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
+            'urgent_help' => (int) $order->get_meta( '_tutor_urgent_help' )
             // Schedule data removed - handled by LatePoint
         ];
     }
@@ -924,6 +931,40 @@ class Darsna_Tutor_Backend {
                     'meta_value' => $urgent_rate
                 ],
                 ['%d', '%s', '%f']
+            );
+            
+            return $result !== false;
+        } catch ( Exception $e ) {
+            return false;
+        }
+    }
+    
+    /**
+     * Set urgent help enabled status for agent
+     */
+    private function set_urgent_help_enabled( int $agent_id, int $enabled ): bool {
+        global $wpdb;
+        
+        try {
+            // Remove existing urgent help status
+            $wpdb->delete(
+                $wpdb->prefix . 'latepoint_agent_meta',
+                [
+                    'object_id' => $agent_id,
+                    'meta_key' => 'urgent_help_enabled'
+                ],
+                ['%d', '%s']
+            );
+            
+            // Insert new urgent help status
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'latepoint_agent_meta',
+                [
+                    'object_id' => $agent_id,
+                    'meta_key' => 'urgent_help_enabled',
+                    'meta_value' => $enabled
+                ],
+                ['%d', '%s', '%d']
             );
             
             return $result !== false;
