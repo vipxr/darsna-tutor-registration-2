@@ -33,8 +33,11 @@
             $(document).on('change', '#schedule_start, #schedule_end', this.validateTimeRange);
             
             // Multi-service interface events
-            $(document).on('click', '#add-service-btn', this.addServiceRow);
-            $(document).on('click', '.remove-service-btn', this.removeServiceRow);
+        $(document).on('click', '#add-service-btn', this.addServiceRow);
+        $(document).on('click', '.remove-service-btn', this.removeServiceRow);
+        
+        // Schedule day enable/disable functionality
+        $(document).on('change', '.day-checkbox input[type="checkbox"]', this.handleDayScheduleToggle);
             $(document).on('change', '.service-select', this.handleServiceChange);
             
             // Legacy single service events (for backward compatibility)
@@ -121,6 +124,22 @@
                 timeInputs.show();
             } else {
                 timeInputs.hide();
+            }
+        },
+        
+        /**
+         * Handle day schedule toggle for individual day time selection
+         */
+        handleDayScheduleToggle: function() {
+            const $checkbox = $(this);
+            const $dayContainer = $checkbox.closest('.day-checkbox');
+            const dayValue = $checkbox.val();
+            const $timeInputs = $dayContainer.find('.day-time-inputs');
+            
+            if ($checkbox.is(':checked')) {
+                $timeInputs.show().find('input').prop('disabled', false);
+            } else {
+                $timeInputs.hide().find('input').prop('disabled', true);
             }
         },
         
@@ -565,21 +584,6 @@
      * Initialize multi-service functionality
      */
     function initMultiServiceFunctionality() {
-        let serviceIndex = $('#tutor-services-container .service-row').length;
-        
-        // Add service button
-        $('#add-service-btn').on('click', function(e) {
-            e.preventDefault();
-            addServiceRow(serviceIndex++);
-        });
-        
-        // Remove service functionality (delegated)
-        $(document).on('click', '.remove-service-btn', function(e) {
-            e.preventDefault();
-            $(this).closest('.service-row').remove();
-            validateServices();
-        });
-        
         // Service selection change (delegated)
         $(document).on('change', '.service-dropdown', function() {
             const $row = $(this).closest('.service-row');
@@ -601,49 +605,6 @@
         
         // Initial validation
         validateServices();
-    }
-    
-    /**
-     * Add a new service row
-     */
-    function addServiceRow(index) {
-        const $container = $('#tutor-services-container');
-        const $firstRow = $container.find('.service-row:first');
-        
-        if ($firstRow.length === 0) {
-            console.error('No service row template found');
-            return;
-        }
-        
-        // Clone the first row and update indices
-        const $newRow = $firstRow.clone();
-        
-        // Update form field names and IDs
-        $newRow.find('select, input').each(function() {
-            const name = $(this).attr('name');
-            if (name) {
-                const newName = name.replace(/\[\d+\]/, '[' + index + ']');
-                $(this).attr('name', newName);
-            }
-        });
-        
-        // Clear values
-        $newRow.find('select').val('');
-        $newRow.find('input').val('');
-        
-        // Update data-index
-        $newRow.attr('data-index', index);
-        
-        // Add remove button if it doesn't exist
-        if ($newRow.find('.remove-service-btn').length === 0) {
-            $newRow.append('<button type="button" class="remove-service-btn button-link-delete">Remove</button>');
-        }
-        
-        // Append to container
-        $container.append($newRow);
-        
-        // Focus on the new service dropdown
-        $newRow.find('.service-dropdown').focus();
     }
     
     /**
