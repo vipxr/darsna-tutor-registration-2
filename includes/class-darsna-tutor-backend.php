@@ -429,27 +429,47 @@ class Darsna_Tutor_Backend {
                 // Create new work period instance
                 $work_period = new OsWorkPeriodModel();
                 
-                // Set all required properties using set_data method like LatePoint does
+                // Set properties directly first to ensure they exist
+                $work_period->agent_id = $agent_id;
+                $work_period->service_id = 0; // all services
+                $work_period->location_id = $location_id;
+                $work_period->week_day = $week_day_number;
+                $work_period->start_time = $start;
+                $work_period->end_time = $end;
+                $work_period->chain_id = substr(wp_generate_uuid4(), 0, 20); // Truncate to 20 chars for varchar(20)
+                $work_period->custom_date = null; // For regular weekly schedule
+                
+                // Also set via set_data method for compatibility
                 $work_period_data = [
                     'agent_id' => $agent_id,
-                    'service_id' => 0, // all services
+                    'service_id' => 0,
                     'location_id' => $location_id,
                     'week_day' => $week_day_number,
                     'start_time' => $start,
                     'end_time' => $end,
-                    'chain_id' => substr(wp_generate_uuid4(), 0, 20), // Truncate to 20 chars for varchar(20)
-                    'custom_date' => null // For regular weekly schedule
+                    'chain_id' => substr(wp_generate_uuid4(), 0, 20),
+                    'custom_date' => null
                 ];
                 
                 $work_period->set_data($work_period_data);
+                
+                // Debug: Check if week_day is properly set
+                error_log( "Darsna: Before save - week_day: {$work_period->week_day}, agent_id: {$work_period->agent_id}" );
+                
                 $save_result = $work_period->save();
                 
                 if ( $save_result ) {
                     error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
                     $error_messages = $work_period->get_error_messages();
-                    error_log( "Darsna: Failed to save work period for day {$day}: " . implode(', ', $error_messages ?: ['Unknown error']) );
+                    $all_errors = $work_period->get_error_messages(); // Get all error messages
+                    $validation_errors = $work_period->get_error_messages('validation'); // Get validation specific errors
+                    error_log( "Darsna: Failed to save work period for day {$day}. All errors: " . print_r($all_errors, true) );
+                    error_log( "Darsna: Validation errors: " . print_r($validation_errors, true) );
+                    error_log( "Darsna: Work period data: " . print_r($work_period_data, true) );
+                    
                     // Fallback to direct database insertion for this specific day
+                    error_log( "Darsna: Failed to save work period for day {$day} using OsWorkPeriodModel, trying fallback method" );
                     $this->insert_work_period_direct( $agent_id, $week_day_number, $start, $end, $location_id );
                 }
             }
