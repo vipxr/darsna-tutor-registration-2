@@ -503,7 +503,6 @@ class Darsna_Tutor_Tutors_Page {
                         <option value="name">Sort by Name</option>
                         <option value="price-low">Price: Low to High</option>
                         <option value="price-high">Price: High to Low</option>
-                        <option value="rating">Highest Rated</option>
                     </select>
                     
                     <button id="enhanced-clear-filters" class="enhanced-clear-btn">Clear</button>
