@@ -543,11 +543,34 @@
                 });
             });
             
-            // Observe all images with data-src attribute
-            $(document).on('DOMNodeInserted', function() {
-                $('img[data-src]').each(function() {
-                    imageObserver.observe(this);
+            // Use MutationObserver to watch for new images with data-src attribute
+            const mutationObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1) { // Element node
+                            // Check if the node itself has data-src
+                            if (node.hasAttribute && node.hasAttribute('data-src')) {
+                                imageObserver.observe(node);
+                            }
+                            // Check for child elements with data-src
+                            const images = node.querySelectorAll ? node.querySelectorAll('img[data-src]') : [];
+                            images.forEach(function(img) {
+                                imageObserver.observe(img);
+                            });
+                        }
+                    });
                 });
+            });
+            
+            // Start observing
+            mutationObserver.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+            
+            // Observe existing images
+            $('img[data-src]').each(function() {
+                imageObserver.observe(this);
             });
         }
     }

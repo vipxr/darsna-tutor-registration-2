@@ -273,6 +273,11 @@
     pointer-events: none;
 }
 
+.tutor-loading input[type="submit"],
+.tutor-loading button[type="submit"] {
+    pointer-events: auto;
+}
+
 .tutor-loading::after {
     content: '';
     position: absolute;

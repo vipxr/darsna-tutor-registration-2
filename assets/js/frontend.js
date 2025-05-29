@@ -462,16 +462,42 @@
          * Show loading state
          */
         showLoadingState: function() {
+            const $submitBtn = $('input[type="submit"], button[type="submit"]');
+            const originalText = $submitBtn.val() || $submitBtn.text();
+            
             $('#tutor-registration-fields').addClass('tutor-loading');
-            $('input[type="submit"]').prop('disabled', true).val('Processing...');
+            $submitBtn.prop('disabled', true);
+            
+            if ($submitBtn.is('input')) {
+                $submitBtn.val('Processing...');
+            } else {
+                $submitBtn.text('Processing...');
+            }
+            
+            // Store original text for restoration
+            $submitBtn.data('original-text', originalText);
+            
+            // Auto-restore after 30 seconds to prevent permanent disabled state
+            setTimeout(function() {
+                TutorRegistration.hideLoadingState();
+            }, 30000);
         },
         
         /**
          * Hide loading state
          */
         hideLoadingState: function() {
+            const $submitBtn = $('input[type="submit"], button[type="submit"]');
+            const originalText = $submitBtn.data('original-text') || 'Place Order';
+            
             $('#tutor-registration-fields').removeClass('tutor-loading');
-            $('input[type="submit"]').prop('disabled', false).val('Place Order');
+            $submitBtn.prop('disabled', false);
+            
+            if ($submitBtn.is('input')) {
+                $submitBtn.val(originalText);
+            } else {
+                $submitBtn.text(originalText);
+            }
         }
     };
     
