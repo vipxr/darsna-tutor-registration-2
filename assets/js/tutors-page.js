@@ -237,8 +237,21 @@
         // Only initialize if enhanced elements exist
         if ($enhancedGrid.length === 0) return;
         
+        // Enhanced debounce function for this scope
+        function enhancedDebounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+        
         // Event listeners for enhanced tutors
-        $enhancedSearch.on('input', debounce(handleEnhancedFilters, 300));
+        $enhancedSearch.on('input', enhancedDebounce(handleEnhancedFilters, 300));
         $enhancedSubjectFilter.on('change', handleEnhancedFilters);
         $enhancedCountryFilter.on('change', handleEnhancedFilters);
         $enhancedPriceFilter.on('change', handleEnhancedFilters);
