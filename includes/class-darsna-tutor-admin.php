@@ -153,7 +153,7 @@ class Darsna_Tutor_Admin {
                 </a>
             </nav>
             
-            <div class="tab-content">
+            <div class="tab-content active">
                 <?php
                 switch ( $current_tab ) {
                     case 'pending':
