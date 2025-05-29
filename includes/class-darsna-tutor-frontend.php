@@ -86,9 +86,7 @@ class Darsna_Tutor_Frontend {
      * Render tutor fields on checkout
      */
     public function render_tutor_fields( $checkout ): void {
-        echo '<div id="tutor-registration-fields">';
-        echo '<h3>' . __( 'Tutor Registration', 'darsna-tutor' ) . '</h3>';
-        
+        echo '<div id="tutor-registration-fields">';        
         // Service selection with rates
         $this->render_service_field();
         
