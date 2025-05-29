@@ -282,9 +282,24 @@ class Darsna_Tutor_Tutors_Page {
     }
     
     private function get_avatar_url($tutor_id) {
-        global $wpdb;
+        // Check if LatePoint classes are available
+        if (class_exists('OsAgentModel') && class_exists('OsAgentHelper')) {
+            // Use LatePoint's agent model to get the agent
+            $agent = new OsAgentModel();
+            $agent = $agent->where(['id' => $tutor_id])->set_limit(1)->get_results_as_models();
+            
+            if (!empty($agent) && is_array($agent)) {
+                $agent = $agent[0];
+                // Use LatePoint's built-in avatar method
+                $avatar_url = $agent->get_avatar_url();
+                if ($avatar_url) {
+                    return $avatar_url;
+                }
+            }
+        }
         
-        // Get WordPress user ID from LatePoint agent
+        // Fallback: try to get wp_user_id and use WordPress avatar
+        global $wpdb;
         $wp_user_id = $wpdb->get_var($wpdb->prepare(
             "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
             $tutor_id
@@ -295,13 +310,14 @@ class Darsna_Tutor_Tutors_Page {
                 'size' => 120,
                 'default' => 'identicon'
             ));
+            
             if ($avatar_url) {
                 return $avatar_url;
             }
         }
         
-        // Default avatar if no WordPress user is linked
-        return 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#e1e5e9"/><circle cx="50" cy="35" r="15" fill="#9ca3af"/><path d="M20 80c0-16.569 13.431-30 30-30s30 13.431 30 30" fill="#9ca3af"/></svg>');
+        // Final fallback to default SVG avatar
+        return 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="60" fill="#e0e0e0"/><circle cx="60" cy="45" r="20" fill="#bdbdbd"/><ellipse cx="60" cy="100" rx="35" ry="25" fill="#bdbdbd"/></svg>');
     }
     
     private function format_price_range($min_price, $max_price) {
