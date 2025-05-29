@@ -94,15 +94,15 @@ class Darsna_Tutor_Tutors_Page {
                         </select>
                     </div>
                     
-                    <div class="filter-group">
-                        <select id="urgent-help-filter" class="filter-select">
-                            <option value="">All Tutors</option>
-                            <option value="yes">Urgent Help Available ⚡</option>
-                            <option value="no">Regular Tutors Only</option>
-                        </select>
-                        <div class="filter-tip urgent-help-tip">
+                    <div class="filter-group urgent-help-group">
+                        <label class="urgent-help-checkbox">
+                            <input type="checkbox" id="urgent-help-filter" value="yes">
+                            <span class="checkmark">⚡</span>
+                            <span class="checkbox-label">Urgent Help Available</span>
+                        </label>
+                        <div class="filter-tip urgent-help-tip visible">
                             <span class="tip-icon">💡</span>
-                            <span class="tip-text">Urgent help tutors respond within 6 hours</span>
+                            <span class="tip-text">These tutors respond within 6 hours</span>
                         </div>
                     </div>
                     

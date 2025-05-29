@@ -86,9 +86,9 @@
 
 .filters-container {
     display: grid;
-    grid-template-columns: 2fr repeat(4, 1fr) auto;
+    grid-template-columns: 2fr repeat(3, 1fr) 1.2fr auto;
     gap: 16px;
-    align-items: center;
+    align-items: start;
 }
 
 /* Search Box */
@@ -160,12 +160,76 @@
     transform: translateY(0);
 }
 
+.filter-tip.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 .urgent-help-tip {
     background: linear-gradient(135deg, #fef3c7, #fde68a);
     padding: 4px 8px;
     border-radius: 6px;
     border: 1px solid #f59e0b;
     box-shadow: 0 1px 3px rgba(245, 158, 11, 0.2);
+}
+
+/* Urgent Help Checkbox */
+.urgent-help-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.urgent-help-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 8px 12px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.urgent-help-checkbox:hover {
+    border-color: #f59e0b;
+    background: #fef3c7;
+}
+
+.urgent-help-checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.urgent-help-checkbox input[type="checkbox"]:checked + .checkmark {
+    background: #f59e0b;
+    color: white;
+    transform: scale(1.1);
+}
+
+.urgent-help-checkbox input[type="checkbox"]:checked ~ .checkbox-label {
+    color: #92400e;
+    font-weight: 600;
+}
+
+.urgent-help-checkbox .checkmark {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #f59e0b;
+    border-radius: 6px;
+    background: #fef3c7;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.urgent-help-checkbox .checkbox-label {
+    color: #374151;
+    transition: all 0.3s ease;
 }
 
 .tip-icon {
@@ -630,6 +694,21 @@
     
     .tutor-actions {
         grid-template-columns: 1fr;
+    }
+    
+    .urgent-help-checkbox {
+        padding: 6px 10px;
+        font-size: 13px;
+    }
+    
+    .urgent-help-checkbox .checkmark {
+        width: 20px;
+        height: 20px;
+        font-size: 12px;
+    }
+    
+    .filter-tip {
+        font-size: 10px;
     }
 }
 

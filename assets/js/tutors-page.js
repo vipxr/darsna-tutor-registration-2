@@ -31,6 +31,14 @@
         $sortFilter.on('change', handleFilters);
         $clearButton.on('click', clearAllFilters);
         
+        // Handle checkbox label clicks
+        $('.urgent-help-checkbox').on('click', function(e) {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = $(this).find('input[type="checkbox"]');
+                checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+            }
+        });
+        
         // Handle tutor card actions
         $(document).on('click', '.contact-tutor', handleContactTutor);
         $(document).on('click', '.view-profile', handleViewProfile);
@@ -42,7 +50,7 @@
                 country: $countryFilter.val(),
                 subject: $subjectFilter.val(),
                 price_range: $priceFilter.val(),
-                urgent_help: $urgentHelpFilter.val(),
+                urgent_help: $urgentHelpFilter.is(':checked') ? 'yes' : '',
                 sort: $sortFilter.val()
             };
             
@@ -80,7 +88,7 @@
             $countryFilter.val('');
             $subjectFilter.val('');
             $priceFilter.val('');
-            $urgentHelpFilter.val('');
+            $urgentHelpFilter.prop('checked', false);
             $sortFilter.val('name');
             
             handleFilters();
