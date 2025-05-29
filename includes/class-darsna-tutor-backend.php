@@ -401,8 +401,14 @@ class Darsna_Tutor_Backend {
 
             $location_id = $schedule['location_id'] ?? 1;
 
-            // 4) delete old work periods
-            OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
+            // 4) delete old work periods - use proper LatePoint method
+            global $wpdb;
+            $wpdb->delete(
+                $wpdb->prefix . 'latepoint_work_periods',
+                ['agent_id' => $agent_id],
+                ['%d']
+            );
+            error_log( "Darsna: Deleted existing work periods for agent {$agent_id}" );
 
             // 5) handle enabled days - map day names to numbers
             $day_map = [
