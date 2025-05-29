@@ -219,6 +219,263 @@
         initKeyboardNavigation();
     }
     
+    // Enhanced Tutors Shortcode Functionality
+    function initEnhancedTutors() {
+        // Cache enhanced tutors elements
+        const $enhancedSearch = $('#enhanced-tutor-search');
+        const $enhancedSubjectFilter = $('#enhanced-subject-filter');
+        const $enhancedCountryFilter = $('#enhanced-country-filter');
+        const $enhancedPriceFilter = $('#enhanced-price-filter');
+        const $enhancedSortFilter = $('#enhanced-sort-filter');
+        const $enhancedClearButton = $('#enhanced-clear-filters');
+        const $enhancedGrid = $('#enhanced-tutors-grid');
+        const $enhancedLoading = $('#enhanced-loading-spinner');
+        const $enhancedNoResults = $('#enhanced-no-results');
+        const $enhancedPopup = $('#enhanced-tutor-popup');
+        const $enhancedPopupBody = $('#enhanced-popup-body');
+        
+        // Only initialize if enhanced elements exist
+        if ($enhancedGrid.length === 0) return;
+        
+        // Event listeners for enhanced tutors
+        $enhancedSearch.on('input', debounce(handleEnhancedFilters, 300));
+        $enhancedSubjectFilter.on('change', handleEnhancedFilters);
+        $enhancedCountryFilter.on('change', handleEnhancedFilters);
+        $enhancedPriceFilter.on('change', handleEnhancedFilters);
+        $enhancedSortFilter.on('change', handleEnhancedFilters);
+        $enhancedClearButton.on('click', clearEnhancedFilters);
+        
+        // Enhanced popup handlers
+        $(document).on('click', '.enhanced-view-details', handleEnhancedViewDetails);
+        $(document).on('click', '.enhanced-popup-close', closeEnhancedPopup);
+        $(document).on('click', '.enhanced-tutor-popup', function(e) {
+            if (e.target === this) {
+                closeEnhancedPopup();
+            }
+        });
+        
+        // Enhanced booking handlers
+        $(document).on('click', '.enhanced-book-now, .enhanced-book-tutor', handleEnhancedBooking);
+        $(document).on('click', '.enhanced-contact-tutor', handleEnhancedContact);
+        
+        // Handle enhanced filters
+        function handleEnhancedFilters() {
+            const filters = {
+                search: $enhancedSearch.val().trim(),
+                country: $enhancedCountryFilter.val(),
+                subject: $enhancedSubjectFilter.val(),
+                price_range: $enhancedPriceFilter.val(),
+                sort: $enhancedSortFilter.val()
+            };
+            
+            // Show loading state
+            showEnhancedLoading();
+            
+            // Filter tutors client-side for better performance
+            filterEnhancedTutorsClientSide(filters);
+        }
+        
+        // Client-side filtering for enhanced tutors
+        function filterEnhancedTutorsClientSide(filters) {
+            const $tutorItems = $('.enhanced-tutor-item');
+            let visibleCount = 0;
+            
+            $tutorItems.each(function() {
+                const $item = $(this);
+                const itemData = {
+                    name: $item.data('name') || '',
+                    country: $item.data('country') || '',
+                    services: $item.data('services') || '',
+                    minPrice: parseFloat($item.data('min-price')) || 0,
+                    maxPrice: parseFloat($item.data('max-price')) || 0
+                };
+                
+                let visible = true;
+                
+                // Search filter
+                if (filters.search) {
+                    const searchTerm = filters.search.toLowerCase();
+                    const searchableText = `${itemData.name} ${itemData.services}`.toLowerCase();
+                    if (searchableText.indexOf(searchTerm) === -1) {
+                        visible = false;
+                    }
+                }
+                
+                // Country filter
+                if (filters.country && itemData.country !== filters.country) {
+                    visible = false;
+                }
+                
+                // Subject filter
+                if (filters.subject) {
+                    if (itemData.services.indexOf(filters.subject.toLowerCase()) === -1) {
+                        visible = false;
+                    }
+                }
+                
+                // Price filter
+                if (filters.price_range) {
+                    const minPrice = itemData.minPrice;
+                    switch (filters.price_range) {
+                        case '0-20':
+                            if (minPrice > 20) visible = false;
+                            break;
+                        case '20-40':
+                            if (minPrice < 20 || minPrice > 40) visible = false;
+                            break;
+                        case '40-60':
+                            if (minPrice < 40 || minPrice > 60) visible = false;
+                            break;
+                        case '60-100':
+                            if (minPrice < 60 || minPrice > 100) visible = false;
+                            break;
+                        case '100+':
+                            if (minPrice < 100) visible = false;
+                            break;
+                    }
+                }
+                
+                if (visible) {
+                    $item.show();
+                    visibleCount++;
+                } else {
+                    $item.hide();
+                }
+            });
+            
+            // Apply sorting to visible items
+            if (filters.sort && visibleCount > 0) {
+                sortEnhancedTutors(filters.sort);
+            }
+            
+            // Show/hide no results message
+            if (visibleCount === 0) {
+                $enhancedNoResults.show();
+            } else {
+                $enhancedNoResults.hide();
+            }
+            
+            hideEnhancedLoading();
+        }
+        
+        // Sort enhanced tutors
+        function sortEnhancedTutors(sortBy) {
+            const $visibleItems = $('.enhanced-tutor-item:visible');
+            const $parent = $enhancedGrid;
+            
+            const sortedItems = $visibleItems.sort(function(a, b) {
+                const $a = $(a);
+                const $b = $(b);
+                
+                switch (sortBy) {
+                    case 'price-low':
+                        return parseFloat($a.data('min-price') || 0) - parseFloat($b.data('min-price') || 0);
+                    case 'price-high':
+                        return parseFloat($b.data('min-price') || 0) - parseFloat($a.data('min-price') || 0);
+                    case 'name':
+                    default:
+                        return ($a.data('name') || '').localeCompare($b.data('name') || '');
+                }
+            });
+            
+            // Re-append sorted items
+            sortedItems.detach().appendTo($parent);
+        }
+        
+        // Clear enhanced filters
+        function clearEnhancedFilters() {
+            $enhancedSearch.val('');
+            $enhancedSubjectFilter.val('');
+            $enhancedCountryFilter.val('');
+            $enhancedPriceFilter.val('');
+            $enhancedSortFilter.val('name');
+            
+            handleEnhancedFilters();
+        }
+        
+        // Handle enhanced view details
+        function handleEnhancedViewDetails() {
+            const tutorId = $(this).data('tutor-id');
+            
+            if (!tutorId) return;
+            
+            // Show loading in popup
+            $enhancedPopupBody.html('<div class="enhanced-popup-loading"><div class="spinner"></div><p>Loading tutor details...</p></div>');
+            $enhancedPopup.show();
+            
+            // Make AJAX request for tutor details
+            $.ajax({
+                url: darsna_ajax.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'get_tutor_details',
+                    nonce: darsna_ajax.nonce,
+                    tutor_id: tutorId
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $enhancedPopupBody.html(response.data.html);
+                    } else {
+                        $enhancedPopupBody.html('<div class="enhanced-popup-error"><p>Failed to load tutor details. Please try again.</p></div>');
+                    }
+                },
+                error: function() {
+                    $enhancedPopupBody.html('<div class="enhanced-popup-error"><p>Network error. Please check your connection and try again.</p></div>');
+                }
+            });
+        }
+        
+        // Close enhanced popup
+        function closeEnhancedPopup() {
+            $enhancedPopup.hide();
+            $enhancedPopupBody.empty();
+        }
+        
+        // Handle enhanced booking
+        function handleEnhancedBooking() {
+            const agentId = $(this).data('selected-agent');
+            
+            if (!agentId) return;
+            
+            // Integrate with LatePoint booking system
+            // This will trigger LatePoint's booking flow
+            if (typeof latepoint_init_booking_form_by_trigger !== 'undefined') {
+                latepoint_init_booking_form_by_trigger($(this));
+            } else {
+                // Fallback: redirect to booking page or show booking modal
+                console.log('Book tutor:', agentId);
+                alert('Booking functionality will integrate with LatePoint booking system.');
+            }
+        }
+        
+        // Handle enhanced contact
+        function handleEnhancedContact() {
+            const tutorEmail = $(this).data('tutor-email');
+            
+            if (tutorEmail) {
+                window.location.href = `mailto:${tutorEmail}`;
+            } else {
+                alert('Contact information not available.');
+            }
+        }
+        
+        // Enhanced loading functions
+        function showEnhancedLoading() {
+            $enhancedLoading.show();
+            $enhancedGrid.css('opacity', '0.5');
+        }
+        
+        function hideEnhancedLoading() {
+            $enhancedLoading.hide();
+            $enhancedGrid.css('opacity', '1');
+        }
+    }
+    
+    // Initialize enhanced tutors when document is ready
+    $(document).ready(function() {
+        initEnhancedTutors();
+    });
+    
     // Initialize tooltips
     function initTooltips() {
         // Simple tooltip implementation
