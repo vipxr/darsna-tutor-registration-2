@@ -10,6 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
+use OsModels\OsWorkPeriodModel;
+
 /**
  * Backend class - Handles order processing and agent management
  */
@@ -376,7 +378,7 @@ class Darsna_Tutor_Backend {
         }
 
         // 2) make sure the model exists
-        if ( ! class_exists( '\OsModels\OsWorkPeriodModel' ) ) {
+        if ( ! class_exists( 'OsModels\OsWorkPeriodModel' ) ) {
             error_log( "Darsna: OsWorkPeriodModel not found, falling back" );
             return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
@@ -390,7 +392,7 @@ class Darsna_Tutor_Backend {
             $location_id = $schedule['location_id'] ?? 1;
 
             // 4) delete old work periods
-            \OsModels\OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
+            OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
 
             // 5) map days and insert new rows
             $day_map = [
@@ -402,7 +404,7 @@ class Darsna_Tutor_Backend {
                     error_log("Darsna: Skipping unknown day '{$day}'");
                     continue;
                 }
-                $new = \OsModels\OsWorkPeriodModel::create([
+                $new = OsWorkPeriodModel::create([
                     'agent_id'    => $agent_id,
                     'service_id'  => 0,                // all services
                     'location_id' => $location_id,
