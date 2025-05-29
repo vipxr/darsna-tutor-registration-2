@@ -3,7 +3,6 @@
 class Darsna_Tutor_Tutors_Page {
     
     public function __construct() {
-        add_shortcode('darsna_tutors_page', array($this, 'render_tutors_page'));
         add_shortcode('darsna_tutors', array($this, 'render_enhanced_tutors'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         add_action('wp_ajax_filter_tutors', array($this, 'ajax_filter_tutors'));
@@ -23,123 +22,7 @@ class Darsna_Tutor_Tutors_Page {
         wp_enqueue_style('darsna-tutors-page', plugin_dir_url(__FILE__) . '../assets/css/tutors-page.css', array(), '1.0.0');
     }
     
-    public function render_tutors_page($atts) {
-        $atts = shortcode_atts(array(
-            'per_page' => 12,
-            'show_filters' => 'yes'
-        ), $atts);
-        
-        ob_start();
-        
-        // Get all tutors
-        $tutors = $this->get_all_tutors();
-        $countries = $this->get_unique_countries($tutors);
-        $subjects = $this->get_unique_subjects($tutors);
-        
-        ?>
-        <div class="darsna-tutors-page">
-            <div class="tutors-info-banner">
-                <div class="info-content">
-                    <div class="info-item">
-                        <span class="info-icon">⚡</span>
-                        <div class="info-text">
-                            <strong>Urgent Help Available</strong>
-                            <p>Look for the lightning bolt badge - these tutors respond within 6 hours for immediate assistance!</p>
-                        </div>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-icon">🔍</span>
-                        <div class="info-text">
-                            <strong>Easy Filtering</strong>
-                            <p>Use the filters below to find tutors by subject, location, price range, and urgent availability.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <?php if ($atts['show_filters'] === 'yes'): ?>
-            <div class="tutors-filters">
-                <div class="filters-container">
-                    <div class="search-box">
-                        <input type="text" id="tutor-search" placeholder="Search tutors by name or expertise..." class="search-input">
-                        <span class="search-icon">🔍</span>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <select id="country-filter" class="filter-select">
-                            <option value="">All Countries</option>
-                            <?php foreach ($countries as $country): ?>
-                                <option value="<?php echo esc_attr($country); ?>"><?php echo esc_html($country); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <select id="subject-filter" class="filter-select">
-                            <option value="">All Subjects</option>
-                            <?php foreach ($subjects as $subject): ?>
-                                <option value="<?php echo esc_attr($subject); ?>"><?php echo esc_html($subject); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <select id="price-filter" class="filter-select">
-                            <option value="">All Prices</option>
-                            <option value="0-20">$0 - $20/hr</option>
-                            <option value="20-40">$20 - $40/hr</option>
-                            <option value="40-60">$40 - $60/hr</option>
-                            <option value="60-100">$60 - $100/hr</option>
-                            <option value="100+">$100+/hr</option>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group urgent-help-group">
-                        <label class="urgent-help-checkbox">
-                            <input type="checkbox" id="urgent-help-filter" value="yes">
-                            <span class="checkmark">⚡</span>
-                            <span class="checkbox-label">Urgent Help Available</span>
-                        </label>
-                        <div class="filter-tip urgent-help-tip visible">
-                            <span class="tip-icon">💡</span>
-                            <span class="tip-text">These tutors respond within 6 hours</span>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <select id="sort-filter" class="filter-select">
-                            <option value="name">Sort by Name</option>
-                            <option value="price-low">Price: Low to High</option>
-                            <option value="price-high">Price: High to Low</option>
-                            <option value="rating">Highest Rated</option>
-                        </select>
-                    </div>
-                    
-                    <button id="clear-filters" class="clear-btn">Clear All</button>
-                </div>
-            </div>
-            <?php endif; ?>
-            
-            <div class="tutors-grid" id="tutors-grid">
-                <?php echo $this->render_tutors_grid($tutors); ?>
-            </div>
-            
-            <div class="loading-spinner" id="loading-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading tutors...</p>
-            </div>
-            
-            <div class="no-results" id="no-results" style="display: none;">
-                <div class="no-results-content">
-                    <h3>No tutors found</h3>
-                    <p>Try adjusting your filters or search terms.</p>
-                </div>
-            </div>
-        </div>
-        <?php
-        
-        return ob_get_clean();
-    }
+    // Removed outdated render_tutors_page method - only using enhanced version now
     
     private function get_all_tutors() {
         global $wpdb;

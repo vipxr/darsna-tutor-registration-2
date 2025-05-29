@@ -7,175 +7,26 @@
     });
     
     function initTutorsPage() {
-        // Cache DOM elements
-        const $searchInput = $('#tutor-search');
-        const $countryFilter = $('#country-filter');
-        const $subjectFilter = $('#subject-filter');
-        const $priceFilter = $('#price-filter');
-        const $urgentHelpFilter = $('#urgent-help-filter');
-        const $sortFilter = $('#sort-filter');
-        const $clearButton = $('#clear-filters');
-        const $tutorsGrid = $('#tutors-grid');
-        const $loadingSpinner = $('#loading-spinner');
-        const $noResults = $('#no-results');
-        
-        // Debounce timer for search
-        let searchTimer;
-        
-        // Event listeners
-        $searchInput.on('input', debounce(handleFilters, 300));
-        $countryFilter.on('change', handleFilters);
-        $subjectFilter.on('change', handleFilters);
-        $priceFilter.on('change', handleFilters);
-        $urgentHelpFilter.on('change', handleFilters);
-        $sortFilter.on('change', handleFilters);
-        $clearButton.on('click', clearAllFilters);
-        
-        // Handle checkbox label clicks
-        $('.urgent-help-checkbox').on('click', function(e) {
-            if (e.target.type !== 'checkbox') {
-                const checkbox = $(this).find('input[type="checkbox"]');
-                checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
-            }
-        });
+        // Debounce function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
         
         // Handle tutor card actions
         $(document).on('click', '.contact-tutor', handleContactTutor);
         $(document).on('click', '.view-profile', handleViewProfile);
         
-        // Handle filter changes
-        function handleFilters() {
-            const filters = {
-                search: $searchInput.val().trim(),
-                country: $countryFilter.val(),
-                subject: $subjectFilter.val(),
-                price_range: $priceFilter.val(),
-                urgent_help: $urgentHelpFilter.is(':checked') ? 'yes' : '',
-                sort: $sortFilter.val()
-            };
-            
-            // Show loading state
-            showLoading();
-            
-            // Make AJAX request
-            $.ajax({
-                url: darsna_ajax.ajax_url,
-                type: 'POST',
-                data: {
-                    action: 'filter_tutors',
-                    nonce: darsna_ajax.nonce,
-                    ...filters
-                },
-                success: function(response) {
-                    hideLoading();
-                    
-                    if (response.success) {
-                        updateTutorsGrid(response.data.html, response.data.count);
-                    } else {
-                        showError('Failed to load tutors. Please try again.');
-                    }
-                },
-                error: function() {
-                    hideLoading();
-                    showError('Network error. Please check your connection and try again.');
-                }
-            });
-        }
+        // Removed outdated handleFilters and clearAllFilters functions - only using enhanced versions now
         
-        // Clear all filters
-        function clearAllFilters() {
-            $searchInput.val('');
-            $countryFilter.val('');
-            $subjectFilter.val('');
-            $priceFilter.val('');
-            $urgentHelpFilter.prop('checked', false);
-            $sortFilter.val('name');
-            
-            handleFilters();
-        }
-        
-        // Update tutors grid
-        function updateTutorsGrid(html, count) {
-            $tutorsGrid.html(html);
-            
-            if (count === 0) {
-                $noResults.show();
-            } else {
-                $noResults.hide();
-                
-                // Animate new cards
-                $('.tutor-card').each(function(index) {
-                    $(this).css({
-                        opacity: 0,
-                        transform: 'translateY(20px)'
-                    }).delay(index * 50).animate({
-                        opacity: 1
-                    }, 300).css('transform', 'translateY(0)');
-                });
-            }
-            
-            // Update results count (if you want to show it)
-            updateResultsCount(count);
-        }
-        
-        // Show loading state
-        function showLoading() {
-            $loadingSpinner.show();
-            $tutorsGrid.css('opacity', '0.5');
-            $noResults.hide();
-        }
-        
-        // Hide loading state
-        function hideLoading() {
-            $loadingSpinner.hide();
-            $tutorsGrid.css('opacity', '1');
-        }
-        
-        // Show error message
-        function showError(message) {
-            // Create error notification
-            const $error = $('<div class="tutor-error-message">' + message + '</div>');
-            $error.css({
-                background: '#fee2e2',
-                color: '#dc2626',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                margin: '16px 0',
-                border: '1px solid #fecaca',
-                textAlign: 'center'
-            });
-            
-            // Remove existing error messages
-            $('.tutor-error-message').remove();
-            
-            // Add new error message
-            $tutorsGrid.before($error);
-            
-            // Auto-remove after 5 seconds
-            setTimeout(function() {
-                $error.fadeOut(300, function() {
-                    $(this).remove();
-                });
-            }, 5000);
-        }
-        
-        // Update results count
-        function updateResultsCount(count) {
-            // Remove existing count
-            $('.results-count').remove();
-            
-            // Add new count
-            const countText = count === 1 ? '1 tutor found' : count + ' tutors found';
-            const $count = $('<div class="results-count">' + countText + '</div>');
-            $count.css({
-                color: '#6b7280',
-                fontSize: '14px',
-                marginBottom: '16px',
-                textAlign: 'center'
-            });
-            
-            $tutorsGrid.before($count);
-        }
+        // Removed outdated utility functions - only using enhanced versions now
         
         // Handle contact tutor
         function handleContactTutor(e) {
