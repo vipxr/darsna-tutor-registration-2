@@ -369,6 +369,8 @@ class Darsna_Tutor_Backend {
      * Set an agent's weekly work periods via LatePoint's model
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
+
+        error_log($agent_id);
         // 1) need at least one day
         if ( empty( $schedule['days'] ) ) {
             return false;
