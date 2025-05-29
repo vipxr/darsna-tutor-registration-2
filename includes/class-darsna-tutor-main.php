@@ -155,12 +155,14 @@ if ( ! class_exists( 'Darsna_Tutor_Main' ) ) {
                 return $items;
             }
 
-            $account_url = get_permalink( get_option( 'woocommerce_myaccount_page_id' ) );
-            $items      .= '<li class="menu-item"><a href="' . esc_url( $account_url ) . '">'
-                          . esc_html__( 'Account', 'darsna' ) . '</a></li>';
+
 
             // Dashboard for tutors, Account for everyone else
             if ( current_user_can( 'latepoint_agent' ) ) {
+                $account_url = get_permalink( get_option( 'woocommerce_myaccount_page_id' ) );
+                $items      .= '<li class="menu-item"><a href="' . esc_url( $account_url ) . '">'
+                              . esc_html__( 'Account', 'darsna' ) . '</a></li>';
+                              
                 $items .= '<li class="menu-item"><a href="' . esc_url( admin_url( 'admin.php?page=latepoint' ) ) . '">'
                        . esc_html__( 'Tutor Dashboard', 'darsna' ) . '</a></li>';
             } 
