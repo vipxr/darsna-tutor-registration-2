@@ -371,14 +371,16 @@ class Darsna_Tutor_Backend {
      * Set an agent's weekly work periods via LatePoint's model
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
-        // Debug logging to confirm method is called
-        error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}, days=" . print_r( $schedule['days'], true ) );
+		// Debug logging to confirm method is called
+		$days_debug = isset( $schedule['days'] ) ? print_r( $schedule['days'], true ) : 'NOT SET';
+		error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}, days={$days_debug}" );
+		error_log( "DEBUG: Full schedule data: " . print_r( $schedule, true ) );
 
-        // 1) need at least one day
-        if ( empty( $schedule['days'] ) ) {
-            error_log( "Darsna: No days provided in schedule" );
-            return false;
-        }
+		// 1) need at least one day
+		if ( empty( $schedule['days'] ) ) {
+			error_log( "Darsna: No days provided in schedule" );
+			return false;
+		}
 
         // 2) make sure the model exists (correct namespace)
         if ( ! class_exists( 'OsWorkPeriodModel' ) ) {
