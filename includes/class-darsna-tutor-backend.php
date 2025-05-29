@@ -816,8 +816,10 @@ class Darsna_Tutor_Backend {
                             $agent_id,
                             $agent_service->service_id
                         ));
+                        error_log("Darsna: Custom price query for agent {$agent_id}, service {$agent_service->service_id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
                         if ( $custom_price !== null ) {
                             $service_data['custom_rate'] = floatval( $custom_price );
+                            error_log("Darsna: Set custom_rate to: " . $service_data['custom_rate']);
                         }
                     }
                     
@@ -854,12 +856,15 @@ class Darsna_Tutor_Backend {
                     $service->id
                 ));
                 
+                error_log("Darsna: Fallback custom price query for agent {$agent_id}, service {$service->id}: " . ($custom_price !== null ? $custom_price : 'NULL'));
                 if ($custom_price !== null) {
                     $service->custom_rate = floatval($custom_price);
+                    error_log("Darsna: Fallback set custom_rate to: " . $service->custom_rate);
                 }
             }
         }
         
+        error_log("Darsna: Final services data for agent {$agent_id}: " . json_encode($services));
         return $services;
     }
     

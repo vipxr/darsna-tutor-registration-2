@@ -368,10 +368,11 @@
             let servicesHTML = '<ul class="services-list">';
             if (services && services.length > 0) {
                 services.forEach(service => {
+                    const displayRate = service.custom_rate || service.charge_amount || 0;
                     servicesHTML += `
                         <li>
                             <span class="service-name">${service.name}</span>
-                            <span class="service-rate">$${parseFloat(service.charge_amount || 0).toFixed(2)}</span>
+                            <span class="service-rate">$${parseFloat(displayRate).toFixed(2)}</span>
                         </li>
                     `;
                 });
