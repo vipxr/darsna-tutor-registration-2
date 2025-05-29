@@ -118,7 +118,7 @@ class Darsna_Tutor_Tutors_Page {
                 a.email,
                 a.phone,
                 a.avatar_image_id,
-                a.bio_short,
+                a.bio,
                 a.extra_data,
                 GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as services,
                 GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices,
@@ -232,8 +232,8 @@ class Darsna_Tutor_Tutors_Page {
                     </div>
                 <?php endif; ?>
                 
-                <?php if (!empty($tutor->bio_short)): ?>
-                    <p class="tutor-bio"><?php echo esc_html(wp_trim_words($tutor->bio_short, 20)); ?></p>
+                <?php if (!empty($tutor->bio)): ?>
+                    <p class="tutor-bio"><?php echo esc_html(wp_trim_words($tutor->bio, 20)); ?></p>
                 <?php endif; ?>
                 
                 <?php if (!empty($tutor->services)): ?>
@@ -338,7 +338,7 @@ class Darsna_Tutor_Tutors_Page {
             // Search filter
             if (!empty($search)) {
                 $search_text = strtolower($search);
-                $tutor_text = strtolower($tutor->first_name . ' ' . $tutor->last_name . ' ' . $tutor->services . ' ' . $tutor->bio_short);
+                $tutor_text = strtolower($tutor->first_name . ' ' . $tutor->last_name . ' ' . $tutor->services . ' ' . $tutor->bio);
                 if (strpos($tutor_text, $search_text) === false) {
                     return false;
                 }
