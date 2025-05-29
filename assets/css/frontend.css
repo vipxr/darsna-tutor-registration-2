@@ -236,7 +236,7 @@
     border: 1px solid #ddd;
     border-radius: 4px;
     font-size: 13px;
-    width: 100px;
+    width: 110px;
 }
 
 .day-time-inputs input[type="time"]:disabled {
