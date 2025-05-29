@@ -370,7 +370,6 @@ class Darsna_Tutor_Backend {
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
 
-        error_log($agent_id);
         // 1) need at least one day
         if ( empty( $schedule['days'] ) ) {
             return false;
