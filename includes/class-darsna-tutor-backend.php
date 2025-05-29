@@ -160,7 +160,7 @@ class Darsna_Tutor_Backend {
             
             // Assign services and set schedule
             $this->assign_agent_services( $agent_id, $tutor_data['service_id'], $tutor_data );
-            $this->set_agent_schedule( $user_id, $tutor_data['schedule'] );
+            $this->set_agent_schedule( $agent_id, $tutor_data['schedule'] );
             
             // Update user role to LatePoint agent
             $user->add_role( 'latepoint_agent' );
@@ -368,12 +368,7 @@ class Darsna_Tutor_Backend {
     /**
      * Set agent schedule using LatePoint OsWorkPeriodModel
      */
-    public function set_agent_schedule( int $user_id, array $schedule ): bool {
-
-        error_log( 'set_agent_schedule called for user_id='.$user_id.'; schedule='. print_r($schedule, true) );
-        error_log( 'Got agent id=' . ($agent->id ?? 'NULL') );
-        error_log( 'Model exists? '. ( class_exists( OsWorkPeriodModel::class ) ? 'yes':'no' ) );
-        
+    public function set_agent_schedule( int $agent_id, array $schedule ): bool {
         // Must have at least one day selected
         if ( empty( $schedule['days'] ) ) {
             return false;
@@ -382,15 +377,11 @@ class Darsna_Tutor_Backend {
         // Check if OsWorkPeriodModel is available
         if ( ! class_exists( 'OsModels\OsWorkPeriodModel' ) ) {
             error_log( "Darsna: OsWorkPeriodModel not found, falling back to direct database" );
-            return $this->set_agent_schedule_fallback( $user_id, $schedule );
+            return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
         
         try {
-            // Fetch LatePoint agent record
-            $agent = $this->get_existing_agent( $user_id );
-            if ( ! $agent ) {
-                return false;
-            }
+            error_log( "Darsna: Setting schedule for agent_id: {$agent_id}" );
             
             // Convert hh:mm to minutes since midnight
             $start = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
@@ -398,7 +389,7 @@ class Darsna_Tutor_Backend {
             $location_id = $schedule['location_id'] ?? 1;
             
             // Delete any old periods for this agent
-            \OsModels\OsWorkPeriodModel::where( 'agent_id', $agent->id )->delete();
+            \OsModels\OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
             
             // Map keys to LatePoint week_day numbers
             $day_map = [
@@ -412,7 +403,7 @@ class Darsna_Tutor_Backend {
                     continue;
                 }
                 \OsModels\OsWorkPeriodModel::create([
-                    'agent_id' => $agent->id,
+                    'agent_id' => $agent_id,
                     'service_id' => 0, // 0 = all services
                     'location_id' => $location_id,
                     'week_day' => $day_map[ $day ],
@@ -422,24 +413,20 @@ class Darsna_Tutor_Backend {
                 ]);
             }
             
+            error_log( "Darsna: Successfully set schedule for agent_id: {$agent_id}" );
             return true;
             
         } catch ( Exception $e ) {
             error_log( "Darsna: Error setting schedule via OsWorkPeriodModel: " . $e->getMessage() );
-            return $this->set_agent_schedule_fallback( $user_id, $schedule );
+            return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
     }
     
     /**
      * Fallback method for direct database schedule setting
      */
-    private function set_agent_schedule_fallback( int $user_id, array $schedule ): bool {
+    private function set_agent_schedule_fallback( int $agent_id, array $schedule ): bool {
         if ( empty( $schedule ) ) {
-            return false;
-        }
-        
-        $agent = $this->get_existing_agent( $user_id );
-        if ( ! $agent ) {
             return false;
         }
         
@@ -447,7 +434,7 @@ class Darsna_Tutor_Backend {
         $table = $wpdb->prefix . 'latepoint_work_periods';
         
         // Clear existing schedule
-        $wpdb->delete( $table, [ 'agent_id' => $agent->id ], [ '%d' ] );
+        $wpdb->delete( $table, [ 'agent_id' => $agent_id ], [ '%d' ] );
         
         // Day mapping
         $day_map = [
@@ -462,7 +449,7 @@ class Darsna_Tutor_Backend {
         foreach ( $day_map as $day => $day_number ) {
             if ( ! empty( $schedule['days'] ) && in_array( $day, $schedule['days'] ) ) {
                 $wpdb->insert( $table, [
-                    'agent_id' => $agent->id,
+                    'agent_id' => $agent_id,
                     'service_id' => 0, // 0 means all services
                     'location_id' => $schedule['location_id'] ?? 1,
                     'start_time' => $start_time,

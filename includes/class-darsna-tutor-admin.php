@@ -633,14 +633,8 @@ class Darsna_Tutor_Admin {
         
         // Update schedule
         if (isset($_POST['schedule'])) {
-            // Get agent to find user ID
-            $agent = $backend->get_agent_by_id($agent_id);
-            if ($agent) {
-                $wp_user = get_user_by('email', $agent->email);
-                if ($wp_user) {
-                    $backend->set_agent_schedule($wp_user->ID, $_POST['schedule']);
-                }
-            }
+            // Set schedule directly using agent_id
+            $backend->set_agent_schedule($agent_id, $_POST['schedule']);
         }
         
         wp_send_json_success('Agent updated successfully');
