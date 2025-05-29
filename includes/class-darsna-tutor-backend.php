@@ -404,16 +404,24 @@ class Darsna_Tutor_Backend {
                     error_log("Darsna: Skipping unknown day '{$day}'");
                     continue;
                 }
-                $new = OsWorkPeriodModel::create([
-                    'agent_id'    => $agent_id,
-                    'service_id'  => 0,                // all services
-                    'location_id' => $location_id,
-                    'week_day'    => $day_map[ $day ],
-                    'start_time'  => $start,
-                    'end_time'    => $end,
-                    'chain_id'    => wp_generate_uuid4(),
-                ]);
-                error_log( 'Inserted period: ' . print_r( $new->toArray(), true ) );
+                
+                // Create new work period instance
+                $work_period = new OsWorkPeriodModel();
+                $work_period->agent_id = $agent_id;
+                $work_period->service_id = 0; // all services
+                $work_period->location_id = $location_id;
+                $work_period->week_day = $day_map[ $day ];
+                $work_period->start_time = $start;
+                $work_period->end_time = $end;
+                $work_period->is_active = true; // Important: mark as active
+                $work_period->chain_id = wp_generate_uuid4();
+                
+                // Save the work period
+                if ( $work_period->save() ) {
+                    error_log( "Darsna: Successfully created work period for day $day (ID: {$work_period->id})" );
+                } else {
+                    error_log( "Darsna: Failed to save work period for day $day" );
+                }
             }
 
             error_log( "Darsna: Successfully set schedule for agent_id={$agent_id}" );
