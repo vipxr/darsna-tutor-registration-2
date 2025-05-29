@@ -368,7 +368,7 @@ class Darsna_Tutor_Backend {
     /**
      * Set agent schedule using LatePoint API
      */
-    private function set_agent_schedule( int $user_id, array $schedule ): bool {
+    public function set_agent_schedule( int $user_id, array $schedule ): bool {
         // Must have at least one day selected
         if ( empty( $schedule['days'] ) ) {
             return false;
