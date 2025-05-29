@@ -371,14 +371,17 @@ class Darsna_Tutor_Backend {
      * Set an agent's weekly work periods via LatePoint's model
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
+        // Debug logging to confirm method is called
+        error_log( "DEBUG: in set_agent_schedule(), agent_id={$agent_id}, days=" . print_r( $schedule['days'], true ) );
 
         // 1) need at least one day
         if ( empty( $schedule['days'] ) ) {
+            error_log( "Darsna: No days provided in schedule" );
             return false;
         }
 
-        // 2) make sure the model exists
-        if ( ! class_exists( 'OsModels\OsWorkPeriodModel' ) ) {
+        // 2) make sure the model exists (correct namespace)
+        if ( ! class_exists( 'OsWorkPeriodModel' ) ) {
             error_log( "Darsna: OsWorkPeriodModel not found, falling back" );
             return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
@@ -394,14 +397,31 @@ class Darsna_Tutor_Backend {
             // 4) delete old work periods
             OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
 
-            // 5) map days and insert new rows
+            // 5) handle days - support both numeric (1-7) and string formats
             $day_map = [
-                'mon'=>1,'tue'=>2,'wed'=>3,'thu'=>4,
-                'fri'=>5,'sat'=>6,'sun'=>7
+                'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
+                'fri' => 5, 'sat' => 6, 'sun' => 7,
+                'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
+                'friday' => 5, 'saturday' => 6, 'sunday' => 7
             ];
+
             foreach ( $schedule['days'] as $day ) {
-                if ( empty( $day_map[ $day ] ) ) {
-                    error_log("Darsna: Skipping unknown day '{$day}'");
+                $week_day_number = null;
+                
+                // Handle numeric days (1-7)
+                if ( is_numeric( $day ) ) {
+                    $day_num = intval( $day );
+                    if ( $day_num >= 1 && $day_num <= 7 ) {
+                        $week_day_number = $day_num;
+                    }
+                }
+                // Handle string days (mon, tue, etc.)
+                else if ( isset( $day_map[ strtolower( $day ) ] ) ) {
+                    $week_day_number = $day_map[ strtolower( $day ) ];
+                }
+
+                if ( ! $week_day_number ) {
+                    error_log( "Darsna: Skipping invalid day '{$day}'" );
                     continue;
                 }
                 
@@ -410,7 +430,7 @@ class Darsna_Tutor_Backend {
                 $work_period->agent_id = $agent_id;
                 $work_period->service_id = 0; // all services
                 $work_period->location_id = $location_id;
-                $work_period->week_day = $day_map[ $day ];
+                $work_period->week_day = $week_day_number;
                 $work_period->start_time = $start;
                 $work_period->end_time = $end;
                 $work_period->chain_id = wp_generate_uuid4();
@@ -418,9 +438,9 @@ class Darsna_Tutor_Backend {
                 
                 // Save the work period
                 if ( $work_period->save() ) {
-                    error_log( "Darsna: Successfully created work period for day $day (ID: {$work_period->id})" );
+                    error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
-                    error_log( "Darsna: Failed to save work period for day $day" );
+                    error_log( "Darsna: Failed to save work period for day {$day}" );
                 }
             }
 
@@ -437,7 +457,8 @@ class Darsna_Tutor_Backend {
      * Fallback method for direct database schedule setting
      */
     private function set_agent_schedule_fallback( int $agent_id, array $schedule ): bool {
-        if ( empty( $schedule ) ) {
+        if ( empty( $schedule['days'] ) ) {
+            error_log( "Darsna: Fallback - No days provided" );
             return false;
         }
         
@@ -447,29 +468,55 @@ class Darsna_Tutor_Backend {
         // Clear existing schedule
         $wpdb->delete( $table, [ 'agent_id' => $agent_id ], [ '%d' ] );
         
-        // Day mapping
+        // Day mapping - same as main method
         $day_map = [
             'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
-            'fri' => 5, 'sat' => 6, 'sun' => 7
+            'fri' => 5, 'sat' => 6, 'sun' => 7,
+            'monday' => 1, 'tuesday' => 2, 'wednesday' => 3, 'thursday' => 4,
+            'friday' => 5, 'saturday' => 6, 'sunday' => 7
         ];
         
         $start_time = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
         $end_time = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
         
-        // Insert new schedule
-        foreach ( $day_map as $day => $day_number ) {
-            if ( ! empty( $schedule['days'] ) && in_array( $day, $schedule['days'] ) ) {
-                $wpdb->insert( $table, [
-                    'agent_id' => $agent_id,
-                    'service_id' => 0, // 0 means all services
-                    'location_id' => $schedule['location_id'] ?? 1,
-                    'start_time' => $start_time,
-                    'end_time' => $end_time,
-                    'week_day' => $day_number,
-                    'chain_id' => wp_generate_uuid4(),
-                    'created_at' => current_time( 'mysql' ),
-                    'updated_at' => current_time( 'mysql' )
-                ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s' ] );
+        // Insert new schedule - handle both numeric and string days
+        foreach ( $schedule['days'] as $day ) {
+            $week_day_number = null;
+            
+            // Handle numeric days (1-7)
+            if ( is_numeric( $day ) ) {
+                $day_num = intval( $day );
+                if ( $day_num >= 1 && $day_num <= 7 ) {
+                    $week_day_number = $day_num;
+                }
+            }
+            // Handle string days (mon, tue, etc.)
+            else if ( isset( $day_map[ strtolower( $day ) ] ) ) {
+                $week_day_number = $day_map[ strtolower( $day ) ];
+            }
+
+            if ( ! $week_day_number ) {
+                error_log( "Darsna: Fallback - Skipping invalid day '{$day}'" );
+                continue;
+            }
+
+            $result = $wpdb->insert( $table, [
+                'agent_id' => $agent_id,
+                'service_id' => 0, // 0 means all services
+                'location_id' => $schedule['location_id'] ?? 1,
+                'start_time' => $start_time,
+                'end_time' => $end_time,
+                'week_day' => $week_day_number,
+                'chain_id' => wp_generate_uuid4(),
+                'custom_date' => null,
+                'created_at' => current_time( 'mysql' ),
+                'updated_at' => current_time( 'mysql' )
+            ], [ '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s', '%s', '%s' ] );
+            
+            if ( $result ) {
+                error_log( "Darsna: Fallback - Successfully inserted work period for day {$day} -> weekday {$week_day_number}" );
+            } else {
+                error_log( "Darsna: Fallback - Failed to insert work period for day {$day}: " . $wpdb->last_error );
             }
         }
         
