@@ -32,10 +32,13 @@
             // Time validation
             $(document).on('change', '#schedule_start, #schedule_end', this.validateTimeRange);
             
-            // Service selection
-            $(document).on('change', '#tutor_service', this.handleServiceChange);
+            // Multi-service interface events
+            $(document).on('click', '#add-service-btn', this.addServiceRow);
+            $(document).on('click', '.remove-service-btn', this.removeServiceRow);
+            $(document).on('change', '.service-select', this.handleServiceChange);
             
-            // Rate selection
+            // Legacy single service events (for backward compatibility)
+            $(document).on('change', '#tutor_service', this.handleServiceChange);
             $(document).on('change', '#tutor_rate', this.handleRateChange);
             
             // Form submission
@@ -74,12 +77,29 @@
          * Setup form validation
          */
         setupValidation: function() {
-            // Add required attributes
-            $('#tutor_service, #tutor_rate').attr('required', true);
+            // Check if we have the new multi-service interface
+            if ($('#tutor-services-container').length > 0) {
+                // New multi-service validation is handled in validateServices function
+                return;
+            }
             
-            // Custom validation messages
-            $('#tutor_service')[0].setCustomValidity('');
-            $('#tutor_rate')[0].setCustomValidity('');
+            // Legacy single service validation (for backward compatibility)
+            const serviceSelect = $('#tutor_service');
+            const rateSelect = $('#tutor_rate');
+            
+            if (serviceSelect.length > 0 && serviceSelect[0]) {
+                serviceSelect.attr('required', true);
+                if (serviceSelect[0].setCustomValidity) {
+                    serviceSelect[0].setCustomValidity('');
+                }
+            }
+            
+            if (rateSelect.length > 0 && rateSelect[0]) {
+                rateSelect.attr('required', true);
+                if (rateSelect[0].setCustomValidity) {
+                    rateSelect[0].setCustomValidity('');
+                }
+            }
         },
         
         /**
@@ -143,13 +163,31 @@
          * Handle service selection change
          */
         handleServiceChange: function() {
-            const serviceId = $(this).val();
+            const $select = $(this);
+            const serviceId = $select.val();
             
-            if (serviceId) {
-                TutorRegistration.clearFieldError('#tutor_service');
-                // You can add additional logic here, like updating rates based on service
+            // Check if this is a multi-service row
+            if ($select.hasClass('service-select')) {
+                const $row = $select.closest('.service-row');
+                const $rateInput = $row.find('.service-rate');
+                
+                if (serviceId) {
+                    TutorRegistration.clearFieldError($select);
+                    // Auto-fill default rate if available
+                    const defaultRate = $select.find('option:selected').data('default-rate');
+                    if (defaultRate && !$rateInput.val()) {
+                        $rateInput.val(defaultRate);
+                    }
+                } else {
+                    TutorRegistration.showFieldError($select, 'Please select a teaching subject');
+                }
             } else {
-                TutorRegistration.showFieldError('#tutor_service', 'Please select a teaching subject');
+                // Legacy single service handling
+                if (serviceId) {
+                    TutorRegistration.clearFieldError('#tutor_service');
+                } else {
+                    TutorRegistration.showFieldError('#tutor_service', 'Please select a teaching subject');
+                }
             }
         },
         
@@ -162,10 +200,203 @@
             if (rate) {
                 TutorRegistration.clearFieldError('#tutor_rate');
                 // Update any dynamic pricing displays
-                TutorRegistration.updatePricingDisplay(rate);
             } else {
-                TutorRegistration.showFieldError('#tutor_rate', 'Please select your hourly rate');
+                TutorRegistration.showFieldError('#tutor_rate', 'Please enter an hourly rate');
             }
+        },
+        
+        /**
+         * Add a new service row
+         */
+        addServiceRow: function() {
+            const $container = $('#tutor-services-container');
+            const $rows = $container.find('.service-row');
+            const newIndex = $rows.length;
+            
+            // Get the template row (first row)
+            const $template = $rows.first();
+            if ($template.length === 0) {
+                console.error('No service row template found');
+                return;
+            }
+            
+            // Clone and update the template
+            const $newRow = $template.clone();
+            
+            // Update form field names and IDs
+            $newRow.find('select, input').each(function() {
+                const $field = $(this);
+                const name = $field.attr('name');
+                if (name) {
+                    const newName = name.replace(/\[\d+\]/, '[' + newIndex + ']');
+                    $field.attr('name', newName);
+                }
+                
+                const id = $field.attr('id');
+                if (id) {
+                    const newId = id.replace(/_\d+$/, '_' + newIndex);
+                    $field.attr('id', newId);
+                }
+            });
+            
+            // Clear values
+            $newRow.find('select').val('');
+            $newRow.find('input').val('');
+            
+            // Update data-index
+            $newRow.attr('data-index', newIndex);
+            
+            // Show remove button
+            $newRow.find('.remove-service-btn').show();
+            
+            // Append to container
+            $container.append($newRow);
+            
+            // Focus on the new service dropdown
+            $newRow.find('.service-select').focus();
+            
+            // Update remove button visibility
+            TutorRegistration.updateRemoveButtons();
+        },
+        
+        /**
+         * Remove a service row
+         */
+        removeServiceRow: function() {
+            const $row = $(this).closest('.service-row');
+            const $container = $('#tutor-services-container');
+            
+            // Don't remove if it's the only row
+            if ($container.find('.service-row').length <= 1) {
+                return;
+            }
+            
+            $row.remove();
+            
+            // Update remove button visibility
+            TutorRegistration.updateRemoveButtons();
+            
+            // Re-index remaining rows
+            TutorRegistration.reindexServiceRows();
+        },
+        
+        /**
+         * Update remove button visibility
+         */
+        updateRemoveButtons: function() {
+            const $container = $('#tutor-services-container');
+            const $rows = $container.find('.service-row');
+            
+            if ($rows.length <= 1) {
+                $rows.find('.remove-service-btn').hide();
+            } else {
+                $rows.find('.remove-service-btn').show();
+            }
+        },
+        
+        /**
+         * Re-index service rows after removal
+         */
+        reindexServiceRows: function() {
+            const $container = $('#tutor-services-container');
+            const $rows = $container.find('.service-row');
+            
+            $rows.each(function(index) {
+                const $row = $(this);
+                
+                // Update form field names
+                $row.find('select, input').each(function() {
+                    const $field = $(this);
+                    const name = $field.attr('name');
+                    if (name) {
+                        const newName = name.replace(/\[\d+\]/, '[' + index + ']');
+                        $field.attr('name', newName);
+                    }
+                    
+                    const id = $field.attr('id');
+                    if (id) {
+                        const newId = id.replace(/_\d+$/, '_' + index);
+                        $field.attr('id', newId);
+                    }
+                });
+                
+                // Update data-index
+                $row.attr('data-index', index);
+            });
+        },
+        
+        /**
+         * Validate services
+         */
+        validateServices: function() {
+            const $container = $('#tutor-services-container');
+            if ($container.length === 0) {
+                return true; // No multi-service interface
+            }
+            
+            const $rows = $container.find('.service-row');
+            let hasValidService = false;
+            const selectedServices = [];
+            let hasDuplicate = false;
+            
+            $rows.each(function() {
+                const $row = $(this);
+                const serviceId = $row.find('.service-select').val();
+                const rate = parseFloat($row.find('.service-rate').val()) || 0;
+                
+                // Reset row styling
+                $row.removeClass('error valid');
+                
+                if (serviceId && rate > 0) {
+                    // Check for duplicates
+                    if (selectedServices.includes(serviceId)) {
+                        $row.addClass('error');
+                        hasDuplicate = true;
+                    } else {
+                        $row.addClass('valid');
+                        selectedServices.push(serviceId);
+                        hasValidService = true;
+                    }
+                } else if (serviceId || rate > 0) {
+                    // Incomplete row
+                    $row.addClass('error');
+                }
+            });
+            
+            // Show validation messages
+            if (hasDuplicate) {
+                TutorRegistration.showFieldError($container, 'Please remove duplicate subjects');
+                return false;
+            } else if (!hasValidService) {
+                TutorRegistration.showFieldError($container, 'Please select at least one subject with a rate');
+                return false;
+            } else {
+                TutorRegistration.clearFieldError($container);
+                return true;
+            }
+        },
+        
+        /**
+         * Show field error
+         */
+        showFieldError: function(field, message) {
+            const $field = $(field);
+            $field.addClass('error');
+            
+            // Remove existing error message
+            $field.siblings('.error-message').remove();
+            
+            // Add new error message
+            $field.after('<div class="error-message">' + message + '</div>');
+        },
+        
+        /**
+         * Clear field error
+         */
+        clearFieldError: function(field) {
+            const $field = $(field);
+            $field.removeClass('error');
+            $field.siblings('.error-message').remove();
         },
         
         /**
