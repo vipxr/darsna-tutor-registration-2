@@ -158,10 +158,19 @@ class Darsna_Tutor_Frontend {
         echo '</select>';
         echo '</div>';
         
-        // Rate input
+        // Rate selection
         echo '<div class="service-rate">';
         echo '<label>' . __( 'Your Rate (USD):', 'darsna-tutor' ) . '</label>';
-        echo '<input type="number" name="tutor_services[' . $index . '][rate]" class="rate-input" value="' . esc_attr( $rate ) . '" step="0.01" min="' . self::MIN_RATE . '" max="' . self::MAX_RATE . '" placeholder="' . self::MIN_RATE . '.00" required>';
+        echo '<select name="tutor_services[' . $index . '][rate]" class="rate-select" required>';
+        echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
+        
+        // Generate rate options from $5 to $50
+        for ( $i = 5; $i <= 50; $i++ ) {
+            $selected = selected( $rate, $i, false );
+            echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
+        }
+        
+        echo '</select>';
         echo '</div>';
         
         // Remove button (only show if not the first row)

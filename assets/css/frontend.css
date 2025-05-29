@@ -52,7 +52,8 @@
 #tutor-registration-fields input[type="text"],
 #tutor-registration-fields input[type="email"],
 #tutor-registration-fields input[type="number"],
-#tutor-registration-fields textarea {
+#tutor-registration-fields textarea,
+.rate-select {
     width: 100%;
     padding: 8px 12px;
     border: 1px solid #ccc;

@@ -166,15 +166,19 @@
             // Check if this is a multi-service row
             if ($select.hasClass('service-select')) {
                 const $row = $select.closest('.service-row');
-                const $rateInput = $row.find('.service-rate');
-                
-                if (serviceId) {
-                    TutorRegistration.clearFieldError($select);
-                    // Auto-fill default rate if available
-                    const defaultRate = $select.find('option:selected').data('default-rate');
-                    if (defaultRate && !$rateInput.val()) {
-                        $rateInput.val(defaultRate);
+                const $rateSelect = $row.find('.rate-select');
+            
+            if (serviceId) {
+                TutorRegistration.clearFieldError($select);
+                // Auto-fill default rate if available and rate not selected
+                const defaultRate = $select.find('option:selected').data('default-rate');
+                if (defaultRate && !$rateSelect.val()) {
+                    // Find the closest rate option to the default rate
+                    const closestRate = Math.round(parseFloat(defaultRate));
+                    if (closestRate >= 5 && closestRate <= 50) {
+                        $rateSelect.val(closestRate);
                     }
+                }
                 } else {
                     TutorRegistration.showFieldError($select, 'Please select a teaching subject');
                 }
@@ -339,7 +343,7 @@
             $rows.each(function() {
                 const $row = $(this);
                 const serviceId = $row.find('.service-select').val();
-                const rate = parseFloat($row.find('.service-rate').val()) || 0;
+                const rate = parseFloat($row.find('.rate-select').val()) || 0;
                 
                 // Reset row styling
                 $row.removeClass('error valid');
@@ -565,19 +569,22 @@
         // Service selection change (delegated)
         $(document).on('change', '.service-dropdown', function() {
             const $row = $(this).closest('.service-row');
-            const $rateInput = $row.find('.rate-input');
+            const $rateSelect = $row.find('.rate-select');
             const defaultRate = $(this).find('option:selected').data('default-rate');
             
-            // Auto-fill default rate if rate input is empty
-            if (defaultRate && !$rateInput.val()) {
-                $rateInput.val(parseFloat(defaultRate).toFixed(2));
+            // Auto-fill default rate if rate not selected
+            if (defaultRate && !$rateSelect.val()) {
+                const closestRate = Math.round(parseFloat(defaultRate));
+                if (closestRate >= 5 && closestRate <= 50) {
+                    $rateSelect.val(closestRate);
+                }
             }
             
             validateServices();
         });
         
-        // Rate input validation (delegated)
-        $(document).on('input change', '.rate-input', function() {
+        // Rate select validation (delegated)
+        $(document).on('change', '.rate-select', function() {
             validateServices();
         });
         
@@ -598,7 +605,7 @@
         $rows.each(function() {
             const $row = $(this);
             const serviceId = $row.find('.service-dropdown').val();
-            const rate = parseFloat($row.find('.rate-input').val()) || 0;
+            const rate = parseFloat($row.find('.rate-select').val()) || 0;
             
             // Reset row styling
             $row.removeClass('error valid');
