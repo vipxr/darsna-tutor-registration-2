@@ -861,16 +861,18 @@ class Darsna_Tutor_Backend {
     public function get_agent_schedule( int $agent_id ): array {
         global $wpdb;
         
-        $schedule_data = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}latepoint_agent_meta WHERE object_id = %d AND meta_key LIKE 'schedule_%'",
+        // Get work periods from latepoint_work_periods table
+        $work_periods = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND custom_date IS NULL ORDER BY week_day, start_time",
             $agent_id
         ));
         
         $schedule = [];
-        $days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        $days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']; // 0-6 mapping
+        $day_names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         
         // Initialize default schedule
-        foreach ( $days as $day ) {
+        foreach ( $day_names as $day ) {
             $schedule[$day] = [
                 'enabled' => false,
                 'start_time' => '09:00',
@@ -878,26 +880,31 @@ class Darsna_Tutor_Backend {
             ];
         }
         
-        // Parse existing schedule data
-        foreach ( $schedule_data as $meta ) {
-            if ( strpos( $meta->meta_key, 'schedule_' ) === 0 ) {
-                $parts = explode( '_', $meta->meta_key );
-                if ( count( $parts ) >= 3 ) {
-                    $day = $parts[1];
-                    $field = $parts[2];
-                    
-                    if ( isset( $schedule[$day] ) ) {
-                        if ( $field === 'enabled' ) {
-                            $schedule[$day]['enabled'] = ( $meta->meta_value === '1' || $meta->meta_value === 'true' );
-                        } else {
-                            $schedule[$day][$field] = $meta->meta_value;
-                        }
-                    }
-                }
+        // Parse work periods data
+        foreach ( $work_periods as $work_period ) {
+            $week_day = intval($work_period->week_day);
+            if ( $week_day >= 0 && $week_day <= 6 ) {
+                $day_name = $day_names[$week_day];
+                $schedule[$day_name] = [
+                    'enabled' => true,
+                    'start_time' => $this->minutes_to_time( intval($work_period->start_time) ),
+                    'end_time' => $this->minutes_to_time( intval($work_period->end_time) )
+                ];
             }
         }
         
+        error_log( "Darsna: Retrieved schedule for agent {$agent_id}: " . print_r($schedule, true) );
+        
         return $schedule;
+    }
+    
+    /**
+     * Convert minutes to HH:MM format
+     */
+    private function minutes_to_time( int $minutes ): string {
+        $hours = floor( $minutes / 60 );
+        $mins = $minutes % 60;
+        return sprintf( '%02d:%02d', $hours, $mins );
     }
     
     /**
