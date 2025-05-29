@@ -70,9 +70,12 @@ class Darsna_Tutor_Backend {
         add_action('latepoint_agent_updated', [$this, 'sync_darsna_agent_schedule'], 10, 1);
         
         // Hook into WordPress admin to ensure custom schedule detection
-        add_action('admin_init', [$this, 'ensure_darsna_agent_schedules'], 20);
+        add_action('admin_init', [$this, 'ensure_darsna_agent_schedules'], 10);
         
-        // Hook into admin footer to fix custom schedule checkbox
+        // Hook into LatePoint agent form to fix custom schedule variables
+        add_action('latepoint_agent_form', [$this, 'fix_agent_form_schedule_variables'], 5);
+        
+        // Hook into admin footer to fix custom schedule checkbox as fallback
         add_action('admin_footer', [$this, 'fix_custom_schedule_checkbox'], 10);
     }
     
@@ -128,7 +131,72 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Fix custom schedule checkbox for Darsna agents
+     * Fix agent form schedule variables for Darsna agents
+     * This hooks into LatePoint's agent form rendering to ensure proper schedule detection
+     */
+    public function fix_agent_form_schedule_variables($agent) {
+        // Only process if this is a Darsna agent
+        if (!$agent || !isset($agent->id)) {
+            return;
+        }
+        
+        $user_id = $this->get_user_id_by_agent_id($agent->id);
+        if (!$user_id || !user_can($user_id, 'latepoint_agent')) {
+            return;
+        }
+        
+        // Check if agent has work periods
+        global $wpdb;
+        $work_periods_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND service_id = 0 AND location_id = 0 AND custom_date IS NULL",
+            $agent->id
+        ));
+        
+        if ($work_periods_count > 0) {
+            // Get the custom work periods for this agent
+            $custom_work_periods = OsWorkPeriodsHelper::get_work_periods(
+                new \LatePoint\Misc\Filter(['agent_id' => $agent->id, 'exact_match' => true]), 
+                true
+            );
+            
+            // Output JavaScript to ensure the form displays correctly
+            echo '<script type="text/javascript">
+            jQuery(document).ready(function($) {
+                // Force the custom schedule checkbox to be checked
+                var customScheduleCheckbox = $("input[name=\'is_custom_schedule\']");
+                if (customScheduleCheckbox.length && !customScheduleCheckbox.is(":checked")) {
+                    customScheduleCheckbox.prop("checked", true).trigger("change");
+                }
+                
+                // Show the custom schedule wrapper
+                $(".custom-schedule-wrapper").show();
+                
+                // Hide any "using general schedule" messages
+                $(".latepoint-message-subtle").each(function() {
+                    var $message = $(this);
+                    if ($message.text().indexOf("general schedule") !== -1) {
+                        $message.hide();
+                    }
+                });
+                
+                console.log("Darsna: Fixed agent form schedule variables for agent ' . $agent->id . ' with " + ' . count($custom_work_periods) . ' + " work periods");
+            });
+            </script>';
+            
+            // Add custom CSS to ensure proper display
+            echo '<style type="text/css">
+            .custom-schedule-wrapper {
+                display: block !important;
+            }
+            .custom-schedule-wrapper .latepoint-message-subtle {
+                display: none !important;
+            }
+            </style>';
+        }
+    }
+    
+    /**
+     * Fix custom schedule checkbox for Darsna agents (fallback method)
      */
     public function fix_custom_schedule_checkbox() {
         // Only run on agent edit pages
