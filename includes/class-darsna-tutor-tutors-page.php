@@ -271,9 +271,6 @@ class Darsna_Tutor_Tutors_Page {
                 </div>
                 
                 <div class="tutor-actions">
-                    <button class="btn btn-primary contact-tutor" data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
-                        Contact Tutor
-                    </button>
                     <button class="btn btn-secondary view-profile" data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
                         View Profile
                     </button>
@@ -745,12 +742,6 @@ class Darsna_Tutor_Tutors_Page {
                         data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
                     Book a Session
                 </button>
-                <?php if (!empty($tutor->email)): ?>
-                    <button class="latepoint-btn latepoint-btn-secondary enhanced-contact-tutor" 
-                            data-tutor-email="<?php echo esc_attr($tutor->email); ?>">
-                        Contact Tutor
-                    </button>
-                <?php endif; ?>
             </div>
         </div>
         <?php
