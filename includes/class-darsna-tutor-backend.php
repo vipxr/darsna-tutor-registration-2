@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-use OsModels\OsWorkPeriodModel;
+use OsWorkPeriodModel;
 
 /**
  * Backend class - Handles order processing and agent management
