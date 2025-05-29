@@ -323,7 +323,8 @@
                     country: $item.data('country') || '',
                     services: $item.data('services') || '',
                     minPrice: parseFloat($item.data('min-price')) || 0,
-                    maxPrice: parseFloat($item.data('max-price')) || 0
+                    maxPrice: parseFloat($item.data('max-price')) || 0,
+                    urgentHelp: $item.data('urgent-help') || false
                 };
                 
                 let visible = true;
@@ -369,6 +370,11 @@
                             if (minPrice < 100) visible = false;
                             break;
                     }
+                }
+                
+                // Urgent help filter
+                if (filters.urgent_help === 'yes' && !itemData.urgentHelp) {
+                    visible = false;
                 }
                 
                 if (visible) {
