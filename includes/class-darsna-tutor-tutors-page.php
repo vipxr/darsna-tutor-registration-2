@@ -455,10 +455,6 @@ class Darsna_Tutor_Tutors_Page {
                             <span class="enhanced-checkmark">⚡</span>
                             <span class="enhanced-checkbox-label">Urgent Help</span>
                         </label>
-                        <div class="enhanced-filter-tip enhanced-urgent-help-tip visible">
-                            <span class="enhanced-tip-icon">💡</span>
-                            <span class="enhanced-tip-text">Quick response</span>
-                        </div>
                     </div>
                     
                     <button id="enhanced-clear-filters" class="enhanced-clear-btn">Clear</button>

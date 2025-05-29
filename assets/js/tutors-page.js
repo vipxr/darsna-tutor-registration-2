@@ -175,7 +175,7 @@
                     services: $item.data('services') || '',
                     minPrice: parseFloat($item.data('min-price')) || 0,
                     maxPrice: parseFloat($item.data('max-price')) || 0,
-                    urgentHelp: $item.data('urgent-help') || false
+                    urgentHelp: $item.data('urgent-help') === 'yes'
                 };
                 
                 let visible = true;
