@@ -140,8 +140,36 @@
     flex: 1;
 }
 
-.service-item input[type="checkbox"] {
-    margin-right: 8px;
+.service-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.service-select {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.service-select label {
+    font-weight: 600;
+    color: #333;
+}
+
+.service-select select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    min-width: 200px;
+}
+
+.service-select select:focus {
+    border-color: #0073aa;
+    outline: none;
+    box-shadow: 0 0 0 1px #0073aa;
 }
 
 .service-rate {

@@ -48,6 +48,9 @@
             
             // Form submissions
             $(document).on('submit', '#agent-edit-form', this.handleAgentUpdate);
+            
+            // Service selection change
+            $(document).on('change', '#service_select', this.handleServiceChange);
         },
 
         /**
@@ -437,24 +440,31 @@
             // Build services selection
             let servicesHTML = '';
             if (allServices.length > 0) {
+                const assignedService = services.length > 0 ? services[0] : null;
+                const selectedServiceId = assignedService ? assignedService.id : '';
+                const selectedRate = assignedService ? (assignedService.custom_rate || assignedService.charge_amount) : '';
+                
+                servicesHTML = `
+                    <div class="service-selection">
+                        <div class="service-select">
+                            <label>Select Service:</label>
+                            <select name="service_id" id="service_select">
+                                <option value="">-- Select a Service --</option>`;
+                
                 allServices.forEach(service => {
-                    const assignedService = services.find(s => s.id == service.id);
-                    const isAssigned = !!assignedService;
-                    const customRate = assignedService ? (assignedService.custom_rate || service.charge_amount) : service.charge_amount;
-                    
-                    servicesHTML += `
-                        <div class="service-item">
-                            <label>
-                                <input type="checkbox" name="services[]" value="${service.id}" ${isAssigned ? 'checked' : ''}>
-                                ${service.name}
-                            </label>
-                            <div class="service-rate">
-                                <label>Rate (USD):</label>
-                                <input type="number" name="service_rates[${service.id}]" value="${parseFloat(customRate || 0).toFixed(2)}" step="0.01" min="0">
-                            </div>
-                        </div>
-                    `;
+                    const isSelected = selectedServiceId == service.id ? 'selected' : '';
+                    servicesHTML += `<option value="${service.id}" data-rate="${service.charge_amount}" ${isSelected}>${service.name}</option>`;
                 });
+                
+                servicesHTML += `
+                            </select>
+                        </div>
+                        <div class="service-rate">
+                            <label>Rate (USD):</label>
+                            <input type="number" name="service_rate" id="service_rate" value="${selectedRate ? parseFloat(selectedRate).toFixed(2) : ''}" step="0.01" min="0">
+                        </div>
+                    </div>
+                `;
             } else {
                 servicesHTML = '<p>No services available</p>';
             }
@@ -593,6 +603,19 @@
         },
 
         /**
+         * Handle service selection change
+         */
+        handleServiceChange: function() {
+            const selectedOption = $(this).find('option:selected');
+            const defaultRate = selectedOption.data('rate') || '';
+            const rateInput = $('#service_rate');
+            
+            if (rateInput.val() === '' || rateInput.val() === '0.00') {
+                rateInput.val(defaultRate ? parseFloat(defaultRate).toFixed(2) : '');
+            }
+        },
+
+        /**
          * Handle agent update form submission
          */
         handleAgentUpdate: function(e) {
@@ -604,19 +627,17 @@
             // Collect form data
             const formData = new FormData(form[0]);
             
-            // Collect services and rates
+            // Collect service and rate
             const services = [];
             const serviceRates = {};
             
-            form.find('input[name="services[]"]:checked').each(function() {
-                const serviceId = $(this).val();
-                services.push(serviceId);
-                
-                const rateInput = form.find(`input[name="service_rates[${serviceId}]"]`);
-                if (rateInput.length) {
-                    serviceRates[serviceId] = rateInput.val();
-                }
-            });
+            const selectedServiceId = form.find('select[name="service_id"]').val();
+            const serviceRate = form.find('input[name="service_rate"]').val();
+            
+            if (selectedServiceId) {
+                services.push(selectedServiceId);
+                serviceRates[selectedServiceId] = serviceRate;
+            }
             
             // Collect schedule data
             const schedule = {};
