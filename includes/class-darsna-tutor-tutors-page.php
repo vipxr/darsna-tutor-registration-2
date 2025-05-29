@@ -126,13 +126,18 @@ class Darsna_Tutor_Tutors_Page {
                 GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as services,
                 GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices,
                 MIN(COALESCE(cp.charge_amount, s.charge_amount)) as min_price,
-                MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price
+                MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price,
+                am.meta_value as urgent_rate
             FROM {$wpdb->prefix}latepoint_agents a
             LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
             LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
             LEFT JOIN {$wpdb->prefix}latepoint_custom_prices cp ON (
                 cp.agent_id = a.id AND 
                 cp.service_id = s.id
+            )
+            LEFT JOIN {$wpdb->prefix}latepoint_agent_meta am ON (
+                am.object_id = a.id AND 
+                am.meta_key = 'urgent_help_rate'
             )
             WHERE a.status = 'active'
             GROUP BY a.id
