@@ -267,19 +267,44 @@ class Darsna_Tutor_Frontend {
     }
     
     /**
-     * Apply dynamic pricing based on tutor rates
+     * Apply dynamic pricing based on tutor hourly rate
+     * Filter: latepoint_full_amount_for_service
+     * @param string $amount The original amount
+     * @param OsBookingModel $booking The booking object
+     * @param mixed $additional_param Additional parameter (if any)
+     * @return string Modified amount
      */
-    public function apply_dynamic_pricing( $cart ) {
+    public function apply_dynamic_pricing( $amount, $booking, $additional_param = null ) {
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
-            return;
+            return $amount;
         }
         
-        foreach ( $cart->get_cart() as $cart_item ) {
-            $hourly_rate = $cart_item['tutor_hourly_rate'] ?? null;
-            if ( $hourly_rate ) {
-                $cart_item['data']->set_price( $hourly_rate );
-            }
+        // Check if we have a booking object and it has an agent_id
+        if ( ! $booking || ! isset( $booking->agent_id ) || ! isset( $booking->service_id ) ) {
+            return $amount;
         }
+        
+        try {
+            global $wpdb;
+            
+            // Get custom price from custom_prices table
+            $custom_price = $wpdb->get_var( $wpdb->prepare(
+                "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
+                 WHERE agent_id = %d AND service_id = %d AND location_id = 1",
+                $booking->agent_id,
+                $booking->service_id
+            ));
+            
+            if ( $custom_price !== null && $custom_price > 0 ) {
+                error_log( "Darsna: Applied custom pricing {$custom_price} for agent {$booking->agent_id}, service {$booking->service_id}" );
+                return $custom_price;
+            }
+            
+        } catch ( Exception $e ) {
+            error_log( "Darsna: Error applying dynamic pricing: " . $e->getMessage() );
+        }
+        
+        return $amount;
     }
     
     /**
