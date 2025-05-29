@@ -140,6 +140,7 @@ class Darsna_Tutor_Frontend {
     private function render_service_row( $services, $index, $service_data = [] ): void {
         $service_id = $service_data['service_id'] ?? '';
         $rate = $service_data['rate'] ?? '';
+        $urgent_rate = $service_data['urgent_rate'] ?? '';
         
         echo '<div class="service-row" data-index="' . $index . '">';
         
@@ -151,7 +152,8 @@ class Darsna_Tutor_Frontend {
         
         foreach ( $services as $service ) {
             $selected = selected( $service_id, $service->id, false );
-            echo "<option value='{$service->id}' data-default-rate='{$service->charge_amount}'{$selected}>{$service->name}</option>";
+            $is_urgent_help = ( strtolower( $service->name ) === 'urgent help' ) ? 'data-is-urgent="true"' : '';
+            echo "<option value='{$service->id}' data-default-rate='{$service->charge_amount}' {$is_urgent_help}{$selected}>{$service->name}</option>";
         }
         
         echo '</select>';
@@ -170,6 +172,22 @@ class Darsna_Tutor_Frontend {
         }
         
         echo '</select>';
+        echo '</div>';
+        
+        // Urgent rate selection (only shown for "Urgent Help" service)
+        echo '<div class="urgent-rate-container" style="display: none;">';
+        echo '<label>' . __( 'Urgent Rate (within 6 hours):', 'darsna-tutor' ) . '</label>';
+        echo '<select name="tutor_services[' . $index . '][urgent_rate]" class="urgent-rate-select">';
+        echo '<option value="">' . __( 'Select urgent rate...', 'darsna-tutor' ) . '</option>';
+        
+        // Generate urgent rate options from $10 to $100 (higher rates for urgent bookings)
+        for ( $i = 10; $i <= 100; $i+=5  ) {
+            $selected = selected( $urgent_rate, $i, false );
+            echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
+        }
+        
+        echo '</select>';
+        echo '<p class="description">' . __( 'This rate applies when students book within 6 hours of the session time.', 'darsna-tutor' ) . '</p>';
         echo '</div>';
         
         // Remove button (visibility controlled by JavaScript)
@@ -308,6 +326,23 @@ class Darsna_Tutor_Frontend {
         try {
             global $wpdb;
             
+            // Get service name to check if it's "Urgent Help"
+            $service_name = $wpdb->get_var( $wpdb->prepare(
+                "SELECT name FROM {$wpdb->prefix}latepoint_services WHERE id = %d",
+                $booking->service_id
+            ));
+            
+            // Check if this is an urgent booking (within 6 hours)
+            $is_urgent_booking = false;
+            if ( isset( $booking->start_date ) && isset( $booking->start_time ) ) {
+                $booking_datetime = new DateTime( $booking->start_date . ' ' . $booking->start_time );
+                $current_datetime = new DateTime();
+                $time_diff = $booking_datetime->getTimestamp() - $current_datetime->getTimestamp();
+                $hours_until_booking = $time_diff / 3600; // Convert seconds to hours
+                
+                $is_urgent_booking = ( $hours_until_booking <= 6 && $hours_until_booking > 0 );
+            }
+            
             // Get custom price from custom_prices table
             $custom_price = $wpdb->get_var( $wpdb->prepare(
                 "SELECT charge_amount FROM {$wpdb->prefix}latepoint_custom_prices 
@@ -316,6 +351,26 @@ class Darsna_Tutor_Frontend {
                 $booking->service_id
             ));
             
+            // If this is "Urgent Help" service and booking is within 6 hours, get urgent rate
+            if ( strtolower( $service_name ) === 'urgent help' && $is_urgent_booking ) {
+                // Get urgent rate from agent's custom pricing (stored as a separate meta or custom field)
+                $urgent_rate = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT meta_value FROM {$wpdb->prefix}latepoint_agents_meta 
+                     WHERE object_id = %d AND meta_key = 'urgent_help_rate'",
+                    $booking->agent_id
+                ));
+                
+                if ( $urgent_rate !== null && $urgent_rate > 0 ) {
+                    return floatval( $urgent_rate );
+                }
+                
+                // Fallback: apply 50% surcharge to regular rate if urgent rate not set
+                if ( $custom_price !== null && $custom_price > 0 ) {
+                    return $custom_price * 1.5;
+                }
+            }
+            
+            // Return regular custom price if available
             if ( $custom_price !== null && $custom_price > 0 ) {
                 return $custom_price;
             }

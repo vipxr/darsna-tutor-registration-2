@@ -406,6 +406,11 @@ class Darsna_Tutor_Backend {
                 if ( $result !== false && isset( $service['rate'] ) ) {
                     $this->set_custom_price( $agent_id, $service['service_id'], $service['rate'] );
                 }
+                
+                // Save urgent rate for "Urgent Help" service
+                if ( $result !== false && isset( $service['urgent_rate'] ) && !empty( $service['urgent_rate'] ) ) {
+                    $this->set_urgent_rate( $agent_id, $service['urgent_rate'] );
+                }
             }
             
             return $success;
@@ -888,6 +893,40 @@ class Darsna_Tutor_Backend {
             }
             
             return false;
+        } catch ( Exception $e ) {
+            return false;
+        }
+    }
+    
+    /**
+     * Set urgent rate for agent
+     */
+    private function set_urgent_rate( int $agent_id, float $urgent_rate ): bool {
+        global $wpdb;
+        
+        try {
+            // Remove existing urgent rate
+            $wpdb->delete(
+                $wpdb->prefix . 'latepoint_agents_meta',
+                [
+                    'object_id' => $agent_id,
+                    'meta_key' => 'urgent_help_rate'
+                ],
+                ['%d', '%s']
+            );
+            
+            // Insert new urgent rate
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'latepoint_agents_meta',
+                [
+                    'object_id' => $agent_id,
+                    'meta_key' => 'urgent_help_rate',
+                    'meta_value' => $urgent_rate
+                ],
+                ['%d', '%s', '%f']
+            );
+            
+            return $result !== false;
         } catch ( Exception $e ) {
             return false;
         }
