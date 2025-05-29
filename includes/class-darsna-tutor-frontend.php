@@ -174,8 +174,8 @@ class Darsna_Tutor_Frontend {
         echo '</select>';
         echo '</div>';
         
-        // Urgent rate selection (only shown for "Urgent Help" service)
-        echo '<div class="urgent-rate-container" style="display: none;">';
+        // Urgent rate selection (shown when rate is selected)
+        echo '<div class="urgent-rate-container">';
         echo '<label>' . __( 'Urgent Rate (within 6 hours):', 'darsna-tutor' ) . '</label>';
         echo '<select name="tutor_services[' . $index . '][urgent_rate]" class="urgent-rate-select">';
         echo '<option value="">' . __( 'Select urgent rate...', 'darsna-tutor' ) . '</option>';
@@ -187,7 +187,7 @@ class Darsna_Tutor_Frontend {
         }
         
         echo '</select>';
-        echo '<p class="description">' . __( 'This rate applies when students book within 6 hours of the session time.', 'darsna-tutor' ) . '</p>';
+        echo '<p class="description">' . __( 'This rate applies to any service when students book within 6 hours of the session time.', 'darsna-tutor' ) . '</p>';
         echo '</div>';
         
         // Remove button (visibility controlled by JavaScript)
@@ -351,8 +351,8 @@ class Darsna_Tutor_Frontend {
                 $booking->service_id
             ));
             
-            // If this is "Urgent Help" service and booking is within 6 hours, get urgent rate
-            if ( strtolower( $service_name ) === 'urgent help' && $is_urgent_booking ) {
+            // If booking is within 6 hours, apply urgent pricing for any service
+            if ( $is_urgent_booking ) {
                 // Get urgent rate from agent's custom pricing (stored as a separate meta or custom field)
                 $urgent_rate = $wpdb->get_var( $wpdb->prepare(
                     "SELECT meta_value FROM {$wpdb->prefix}latepoint_agents_meta 

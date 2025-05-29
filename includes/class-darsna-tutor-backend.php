@@ -407,10 +407,10 @@ class Darsna_Tutor_Backend {
                     $this->set_custom_price( $agent_id, $service['service_id'], $service['rate'] );
                 }
                 
-                // Save urgent rate for "Urgent Help" service
-                if ( $result !== false && isset( $service['urgent_rate'] ) && !empty( $service['urgent_rate'] ) ) {
-                    $this->set_urgent_rate( $agent_id, $service['urgent_rate'] );
-                }
+                // Save urgent rate for any service (applies to all services when booking within 6 hours)
+            if ( $result !== false && isset( $service['urgent_rate'] ) && !empty( $service['urgent_rate'] ) ) {
+                $this->set_urgent_rate( $agent_id, $service['urgent_rate'] );
+            }
             }
             
             return $success;

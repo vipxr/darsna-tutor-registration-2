@@ -130,6 +130,7 @@
 
 /* Urgent Rate Styling */
 .urgent-rate-container {
+    display: none; /* Initially hidden, shown by JavaScript when rate is selected */
     margin-top: 15px;
     padding: 15px;
     background: #fff3cd;

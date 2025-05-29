@@ -111,20 +111,6 @@
                 const $urgentContainer = $row.find('.urgent-rate-container');
                 const $urgentSelect = $row.find('.urgent-rate-select');
                 
-                // Check if selected service is "Urgent Help"
-                const $selectedOption = $select.find('option:selected');
-                const isUrgentHelp = $selectedOption.data('is-urgent') === true;
-                
-                if (isUrgentHelp) {
-                    // Show urgent rate field for "Urgent Help" service
-                    $urgentContainer.show();
-                    $urgentSelect.prop('required', true);
-                } else {
-                    // Hide urgent rate field for other services
-                    $urgentContainer.hide();
-                    $urgentSelect.prop('required', false).val('');
-                }
-            
                 if (serviceId) {
                     TutorRegistration.clearFieldError($select);
                     // Auto-fill default rate if available and rate not selected
@@ -135,6 +121,11 @@
                         if (closestRate >= 5 && closestRate <= 50) {
                             $rateSelect.val(closestRate);
                         }
+                    }
+                    
+                    // Check if rate is already selected to show urgent rate field
+                    if ($rateSelect.val()) {
+                        $urgentContainer.show();
                     }
                 } else {
                     TutorRegistration.showFieldError($select, 'Please select a teaching subject');
@@ -521,6 +512,17 @@
         
         // Rate select validation (delegated)
         $(document).on('change', '.rate-select', function() {
+            const $rateSelect = $(this);
+            const $row = $rateSelect.closest('.service-row');
+            const $urgentContainer = $row.find('.urgent-rate-container');
+            
+            // Show urgent rate field when a rate is selected
+            if ($rateSelect.val()) {
+                $urgentContainer.show();
+            } else {
+                $urgentContainer.hide();
+            }
+            
             validateServices();
         });
         
