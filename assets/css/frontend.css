@@ -161,6 +161,25 @@
     background: white;
 }
 
+/* Urgent Rate Error Styling */
+.urgent-rate-error {
+    border-left: 4px solid #d63638;
+    background-color: #fef7f7;
+}
+
+.urgent-rate-select.error {
+    border-color: #d63638;
+    box-shadow: 0 0 0 1px #d63638;
+}
+
+.urgent-rate-error-message {
+    color: #d63638 !important;
+    font-size: 12px !important;
+    margin-top: 5px !important;
+    margin-bottom: 0 !important;
+    font-weight: 500;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .service-row {

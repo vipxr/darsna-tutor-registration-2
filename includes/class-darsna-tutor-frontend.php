@@ -187,7 +187,6 @@ class Darsna_Tutor_Frontend {
         }
         
         echo '</select>';
-        echo '<p class="description">' . __( 'This rate applies to any service when students book within 6 hours of the session time.', 'darsna-tutor' ) . '</p>';
         echo '</div>';
         
         // Remove button (visibility controlled by JavaScript)
@@ -355,7 +354,7 @@ class Darsna_Tutor_Frontend {
             if ( $is_urgent_booking ) {
                 // Get urgent rate from agent's custom pricing (stored as a separate meta or custom field)
                 $urgent_rate = $wpdb->get_var( $wpdb->prepare(
-                    "SELECT meta_value FROM {$wpdb->prefix}latepoint_agents_meta 
+                    "SELECT meta_value FROM {$wpdb->prefix}latepoint_agent_meta 
                      WHERE object_id = %d AND meta_key = 'urgent_help_rate'",
                     $booking->agent_id
                 ));

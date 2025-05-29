@@ -907,7 +907,7 @@ class Darsna_Tutor_Backend {
         try {
             // Remove existing urgent rate
             $wpdb->delete(
-                $wpdb->prefix . 'latepoint_agents_meta',
+                $wpdb->prefix . 'latepoint_agent_meta',
                 [
                     'object_id' => $agent_id,
                     'meta_key' => 'urgent_help_rate'
@@ -917,7 +917,7 @@ class Darsna_Tutor_Backend {
             
             // Insert new urgent rate
             $result = $wpdb->insert(
-                $wpdb->prefix . 'latepoint_agents_meta',
+                $wpdb->prefix . 'latepoint_agent_meta',
                 [
                     'object_id' => $agent_id,
                     'meta_key' => 'urgent_help_rate',
