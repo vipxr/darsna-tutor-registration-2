@@ -371,7 +371,9 @@ class Darsna_Tutor_Backend {
     public function set_agent_schedule( int $user_id, array $schedule ): bool {
 
         error_log( 'set_agent_schedule called for user_id='.$user_id.'; schedule='. print_r($schedule, true) );
-
+        error_log( 'Got agent id=' . ($agent->id ?? 'NULL') );
+        error_log( 'Model exists? '. ( class_exists( OsWorkPeriodModel::class ) ? 'yes':'no' ) );
+        
         // Must have at least one day selected
         if ( empty( $schedule['days'] ) ) {
             return false;
