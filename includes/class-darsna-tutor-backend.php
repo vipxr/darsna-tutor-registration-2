@@ -442,7 +442,7 @@ class Darsna_Tutor_Backend {
                 if ( $save_result ) {
                     error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
-                    error_log( "Darsna: Failed to save work period for day {$day}. Errors: " . print_r( $work_period->get_errors(), true ) );
+                    error_log( "Darsna: Failed to save work period for day {$day} using OsWorkPeriodModel, trying fallback method" );
                     // Try fallback method for this specific day
                     $fallback_schedule = [
                         'days' => [$week_day_number],
