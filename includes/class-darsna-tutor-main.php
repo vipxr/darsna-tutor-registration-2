@@ -162,7 +162,12 @@ if ( ! class_exists( 'Darsna_Tutor_Main' ) ) {
             // Dashboard for tutors, Account for everyone else
             if ( current_user_can( 'latepoint_agent' ) ) {
                 $items .= '<li class="menu-item"><a href="' . esc_url( admin_url( 'admin.php?page=latepoint' ) ) . '">'
-                       . esc_html__( 'Dashboard', 'darsna' ) . '</a></li>';
+                       . esc_html__( 'Tutor Dashboard', 'darsna' ) . '</a></li>';
+            } 
+            // Dashboard for tutors, Account for everyone else
+            if ( current_user_can( 'subscriber' ) ) {
+                $items .= '<li class="menu-item"><a href="/student-dashboard/">'
+                    . esc_html__( 'Student Dashboard', 'darsna' ) . '</a></li>';
             } 
                
             // Logout link
