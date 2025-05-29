@@ -170,6 +170,56 @@
     animation: pulse 2s infinite;
 }
 
+/* Urgent Help Badge */
+.urgent-help-badge {
+    position: absolute;
+    top: -8px;
+    left: -8px;
+    background: linear-gradient(135deg, #ff6b35, #f7931e);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+    z-index: 2;
+    animation: urgentPulse 2s infinite;
+}
+
+.urgent-icon {
+    font-size: 12px;
+    animation: flash 1.5s infinite;
+}
+
+.urgent-text {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+@keyframes urgentPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 2px 8px rgba(255, 107, 53, 0.4);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(255, 107, 53, 0.6);
+    }
+}
+
+@keyframes flash {
+    0%, 50%, 100% {
+        opacity: 1;
+    }
+    25%, 75% {
+        opacity: 0.7;
+    }
+}
+
 @keyframes pulse {
     0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
     70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }

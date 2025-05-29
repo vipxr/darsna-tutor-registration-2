@@ -76,6 +76,14 @@ class Darsna_Tutor_Tutors_Page {
                     </div>
                     
                     <div class="filter-group">
+                        <select id="urgent-help-filter" class="filter-select">
+                            <option value="">All Tutors</option>
+                            <option value="yes">Urgent Help Available</option>
+                            <option value="no">Regular Tutors Only</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
                         <select id="sort-filter" class="filter-select">
                             <option value="name">Sort by Name</option>
                             <option value="price-low">Price: Low to High</option>
@@ -375,9 +383,10 @@ class Darsna_Tutor_Tutors_Page {
         $country = sanitize_text_field($_POST['country'] ?? '');
         $subject = sanitize_text_field($_POST['subject'] ?? '');
         $price_range = sanitize_text_field($_POST['price_range'] ?? '');
+        $urgent_help = sanitize_text_field($_POST['urgent_help'] ?? '');
         $sort = sanitize_text_field($_POST['sort'] ?? 'name');
         
-        $tutors = $this->get_filtered_tutors($search, $country, $subject, $price_range, $sort);
+        $tutors = $this->get_filtered_tutors($search, $country, $subject, $price_range, $urgent_help, $sort);
         
         wp_send_json_success(array(
             'html' => $this->render_tutors_grid($tutors),
@@ -385,11 +394,11 @@ class Darsna_Tutor_Tutors_Page {
         ));
     }
     
-    private function get_filtered_tutors($search, $country, $subject, $price_range, $sort) {
+    private function get_filtered_tutors($search, $country, $subject, $price_range, $urgent_help, $sort) {
         $tutors = $this->get_all_tutors();
         
         // Apply filters
-        $filtered_tutors = array_filter($tutors, function($tutor) use ($search, $country, $subject, $price_range) {
+        $filtered_tutors = array_filter($tutors, function($tutor) use ($search, $country, $subject, $price_range, $urgent_help) {
             // Search filter
             if (!empty($search)) {
                 $search_text = strtolower($search);
@@ -431,6 +440,17 @@ class Darsna_Tutor_Tutors_Page {
                     case '100+':
                         if ($min_price < 100) return false;
                         break;
+                }
+            }
+            
+            // Urgent help filter
+            if (!empty($urgent_help)) {
+                $has_urgent_help = !empty($tutor->urgent_rate) && $tutor->urgent_rate > 0;
+                if ($urgent_help === 'yes' && !$has_urgent_help) {
+                    return false;
+                }
+                if ($urgent_help === 'no' && $has_urgent_help) {
+                    return false;
                 }
             }
             

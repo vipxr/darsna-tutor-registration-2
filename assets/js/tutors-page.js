@@ -12,6 +12,7 @@
         const $countryFilter = $('#country-filter');
         const $subjectFilter = $('#subject-filter');
         const $priceFilter = $('#price-filter');
+        const $urgentHelpFilter = $('#urgent-help-filter');
         const $sortFilter = $('#sort-filter');
         const $clearButton = $('#clear-filters');
         const $tutorsGrid = $('#tutors-grid');
@@ -26,6 +27,7 @@
         $countryFilter.on('change', handleFilters);
         $subjectFilter.on('change', handleFilters);
         $priceFilter.on('change', handleFilters);
+        $urgentHelpFilter.on('change', handleFilters);
         $sortFilter.on('change', handleFilters);
         $clearButton.on('click', clearAllFilters);
         
@@ -40,6 +42,7 @@
                 country: $countryFilter.val(),
                 subject: $subjectFilter.val(),
                 price_range: $priceFilter.val(),
+                urgent_help: $urgentHelpFilter.val(),
                 sort: $sortFilter.val()
             };
             
@@ -77,6 +80,7 @@
             $countryFilter.val('');
             $subjectFilter.val('');
             $priceFilter.val('');
+            $urgentHelpFilter.val('');
             $sortFilter.val('name');
             
             handleFilters();
