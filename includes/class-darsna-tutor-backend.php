@@ -576,14 +576,10 @@ class Darsna_Tutor_Backend {
      * Get all agents from LatePoint using Repository API
      */
     public function get_all_agents(): array {
-        error_log('Darsna Backend: get_all_agents() called');
-        
         try {
             // Use LatePoint Repository API if available
             if ( class_exists( '\OsRepositories\AgentsRepository' ) ) {
-                error_log('Darsna Backend: Using LatePoint Repository API');
                 $models = \OsRepositories\AgentsRepository::instance()->get_all();
-                error_log('Darsna Backend: Repository returned ' . count($models) . ' models');
                 
                 $out = [];
                 foreach ( $models as $m ) {
@@ -595,33 +591,25 @@ class Darsna_Tutor_Backend {
                     if ( $wp ) {
                         $data['wp_user_id'] = $wp->ID;
                         $data['wp_user'] = $wp;
-                        error_log('Darsna Backend: Found WP user for agent ' . $m->id . ': ' . $wp->user_login);
-                    } else {
-                        error_log('Darsna Backend: No WP user found for agent ' . $m->id . ' with wp_user_id: ' . $m->wp_user_id);
                     }
                     
                     $out[] = $data;
                 }
                 
-                error_log('Darsna Backend: Returning ' . count($out) . ' processed agents from Repository API');
                 return $out;
-            } else {
-                error_log('Darsna Backend: LatePoint Repository API not available, using fallback');
             }
         } catch ( Exception $e ) {
-            error_log( "Darsna Backend: Error using LatePoint Repository API: " . $e->getMessage() );
+            // Fall through to database fallback
         }
         
         // Fallback to direct database query
         global $wpdb;
         
         $agents_table = $wpdb->prefix . 'latepoint_agents';
-        error_log('Darsna Backend: Using fallback database query on table: ' . $agents_table);
         
         // Check if table exists first
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$agents_table'");
         if (!$table_exists) {
-            error_log('Darsna Backend: Table ' . $agents_table . ' does not exist');
             return [];
         }
         
@@ -630,27 +618,18 @@ class Darsna_Tutor_Backend {
         );
         
         if ($wpdb->last_error) {
-            error_log('Darsna Backend: Database error: ' . $wpdb->last_error);
             return [];
         }
         
-        error_log('Darsna Backend: Direct query returned ' . count($agents ?: []) . ' agents');
-        
         // Enhance with WordPress user data
-        $processed_count = 0;
         foreach ( $agents as &$agent ) {
             $wp_user = get_user_by( 'email', $agent->email );
             if ( $wp_user ) {
                 $agent->wp_user_id = $wp_user->ID;
                 $agent->wp_user = $wp_user;
-                $processed_count++;
-                error_log('Darsna Backend: Found WP user for agent ' . $agent->id . ': ' . $wp_user->user_login);
-            } else {
-                error_log('Darsna Backend: No WP user found for agent ' . $agent->id . ' with email: ' . $agent->email);
             }
         }
         
-        error_log('Darsna Backend: Enhanced ' . $processed_count . ' agents with WP user data');
         return $agents ?: [];
     }
     

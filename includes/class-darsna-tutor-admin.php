@@ -119,21 +119,8 @@ class Darsna_Tutor_Admin {
      * Main admin page
      */
     public function admin_page(): void {
-        error_log('Darsna Admin: admin_page() called');
-        
-        // Check for any output buffering or errors
-        if (ob_get_level()) {
-            error_log('Darsna Admin: Output buffering is active at level: ' . ob_get_level());
-        }
-        
         $agents = $this->get_all_agents();
-        error_log('Darsna Admin: admin_page() received ' . count($agents) . ' agents');
         $current_tab = isset( $_GET['tab'] ) ? sanitize_text_field( $_GET['tab'] ) : 'list';
-        
-        error_log('Darsna Admin: About to start HTML output');
-        
-        // Test if HTML output is working
-        echo '<!-- Darsna Admin: HTML output test -->';
         ?>
         <div class="wrap">
             <h1><?php esc_html_e( 'Tutor Agents Management', 'darsna-tutor' ); ?></h1>
@@ -186,7 +173,6 @@ class Darsna_Tutor_Admin {
             </div>
         </div>
         <?php
-        error_log('Darsna Admin: HTML output completed successfully');
     }
     
     /**
@@ -245,20 +231,11 @@ class Darsna_Tutor_Admin {
      * Render agents table
      */
     public function render_agents_table( array $agents, string $filter = '' ): void {
-        error_log('Darsna Admin: render_agents_table() called with ' . count($agents) . ' agents and filter: ' . $filter);
-        
         // Apply filter
         if ( ! empty( $filter ) ) {
             $agents = array_filter( $agents, function( $agent ) use ( $filter ) {
                 return $agent->status === $filter;
             });
-        }
-        
-        error_log('Darsna Admin: About to render table with ' . count($agents) . ' agents');
-        
-        if (!empty($agents)) {
-            $first_agent = reset($agents);
-            error_log('Darsna Admin: First agent sample: ' . print_r($first_agent, true));
         }
         
         ?>
@@ -297,16 +274,11 @@ class Darsna_Tutor_Admin {
                 </thead>
                 <tbody>
                     <?php if ( empty( $agents ) ) : ?>
-                        <?php error_log('Darsna Admin: Displaying "No agents found" message'); ?>
                         <tr>
                             <td colspan="8" class="no-items"><?php esc_html_e( 'No agents found.', 'darsna-tutor' ); ?></td>
                         </tr>
                     <?php else : ?>
-                        <?php 
-                        error_log('Darsna Admin: Starting to render ' . count($agents) . ' agent rows');
-                        foreach ( $agents as $index => $agent ) : 
-                            error_log('Darsna Admin: Rendering agent row ' . ($index + 1) . ' for agent ID: ' . $agent->id);
-                        ?>
+                        <?php foreach ( $agents as $agent ) : ?>
                             <tr data-agent-id="<?php echo esc_attr( $agent->id ); ?>">
                                 <th class="check-column">
                                     <input type="checkbox" name="agent[]" value="<?php echo esc_attr( $agent->id ); ?>">
@@ -340,9 +312,7 @@ class Darsna_Tutor_Admin {
                                 <td class="column-services">
                                     <?php 
                                     try {
-                                        error_log('Darsna Admin: Getting services for agent ID: ' . $agent->id);
                                         $services = $this->get_agent_services( $agent->id );
-                                        error_log('Darsna Admin: Retrieved ' . count($services) . ' services for agent ' . $agent->id);
                                         
                                         if (!empty($services)) {
                                             $service_names = array_column( $services, 'name' );
@@ -351,7 +321,6 @@ class Darsna_Tutor_Admin {
                                             echo esc_html__( 'No services', 'darsna-tutor' );
                                         }
                                     } catch (Exception $e) {
-                                        error_log('Darsna Admin: Error getting services for agent ' . $agent->id . ': ' . $e->getMessage());
                                         echo esc_html__( 'Error loading services', 'darsna-tutor' );
                                     }
                                     ?>
@@ -362,7 +331,6 @@ class Darsna_Tutor_Admin {
                                         $rate = $agent->hourly_rate ?? 0;
                                         echo '$' . esc_html( number_format( $rate, 2 ) );
                                     } catch (Exception $e) {
-                                        error_log('Darsna Admin: Error displaying rate for agent ' . $agent->id . ': ' . $e->getMessage());
                                         echo '$0.00';
                                     }
                                     ?>
@@ -380,9 +348,7 @@ class Darsna_Tutor_Admin {
                                     <?php endif; ?>
                                 </td>
                             </tr>
-                            <?php error_log('Darsna Admin: Successfully rendered row for agent ID: ' . $agent->id); ?>
                         <?php endforeach; ?>
-                        <?php error_log('Darsna Admin: Finished rendering all agent rows'); ?>
                     <?php endif; ?>
                 </tbody>
             </table>
@@ -394,33 +360,12 @@ class Darsna_Tutor_Admin {
      * Get all agents from LatePoint using backend service
      */
     private function get_all_agents(): array {
-        error_log('Darsna Admin: get_all_agents() called');
-        
         $backend = Darsna_Tutor_Backend::instance();
         if (!$backend) {
-            error_log('Darsna Admin: Backend instance is null');
             return [];
         }
         
-        $agents = $backend->get_all_agents();
-        error_log('Darsna Admin: Retrieved ' . count($agents) . ' agents from backend');
-        
-        if (empty($agents)) {
-            error_log('Darsna Admin: No agents returned from backend');
-            // Check if LatePoint tables exist
-            global $wpdb;
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}latepoint_agents'");
-            error_log('Darsna Admin: latepoint_agents table exists: ' . ($table_exists ? 'YES' : 'NO'));
-            
-            if ($table_exists) {
-                $count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_agents");
-                error_log('Darsna Admin: Total agents in database: ' . $count);
-            }
-        } else {
-            error_log('Darsna Admin: Agent data sample: ' . print_r(array_slice($agents, 0, 1), true));
-        }
-        
-        return $agents;
+        return $backend->get_all_agents();
     }
     
     /**
