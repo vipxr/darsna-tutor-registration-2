@@ -26,18 +26,16 @@
          * Bind event handlers
          */
         bindEvents: function() {
-            // Schedule day toggles
-            $(document).on('change', '.day-checkbox input[type="checkbox"]', this.handleDayToggle);
+            // Multi-service interface events
+            $(document).on('click', '#add-service-btn', this.addServiceRow);
+            $(document).on('click', '.remove-service-btn', this.removeServiceRow);
+            
+            // Schedule day enable/disable functionality
+            $(document).on('change', '.day-checkbox input[type="checkbox"]', this.handleDayScheduleToggle);
             
             // Time validation
             $(document).on('change', '#schedule_start, #schedule_end', this.validateTimeRange);
             
-            // Multi-service interface events
-        $(document).on('click', '#add-service-btn', this.addServiceRow);
-        $(document).on('click', '.remove-service-btn', this.removeServiceRow);
-        
-        // Schedule day enable/disable functionality
-        $(document).on('change', '.day-checkbox input[type="checkbox"]', this.handleDayScheduleToggle);
             $(document).on('change', '.service-select', this.handleServiceChange);
             
             // Legacy single service events (for backward compatibility)
@@ -105,36 +103,16 @@
             }
         },
         
-        /**
-         * Handle day checkbox toggle
-         */
-        handleDayToggle: function() {
-            TutorRegistration.updateScheduleDisplay();
-            TutorRegistration.validateScheduleDays();
-        },
-        
-        /**
-         * Update schedule display
-         */
-        updateScheduleDisplay: function() {
-            const checkedDays = $('.day-checkbox input[type="checkbox"]:checked');
-            const timeInputs = $('.schedule-times');
-            
-            if (checkedDays.length > 0) {
-                timeInputs.show();
-            } else {
-                timeInputs.hide();
-            }
-        },
+
         
         /**
          * Handle day schedule toggle for individual day time selection
          */
         handleDayScheduleToggle: function() {
             const $checkbox = $(this);
-            const $dayContainer = $checkbox.closest('.day-checkbox');
+            const $dayItem = $checkbox.closest('.day-schedule-item');
             const dayValue = $checkbox.val();
-            const $timeInputs = $dayContainer.find('.day-time-inputs');
+            const $timeInputs = $dayItem.find('.day-time-inputs');
             
             if ($checkbox.is(':checked')) {
                 $timeInputs.show().find('input').prop('disabled', false);
