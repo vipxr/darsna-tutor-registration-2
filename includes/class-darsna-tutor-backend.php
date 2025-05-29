@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-use OsModels\OsWorkPeriodModel;
+// LatePoint's OsWorkPeriodModel will be loaded by LatePoint plugin
 
 /**
  * Backend class - Handles order processing and agent management
@@ -413,8 +413,8 @@ class Darsna_Tutor_Backend {
                 $work_period->week_day = $day_map[ $day ];
                 $work_period->start_time = $start;
                 $work_period->end_time = $end;
-                $work_period->is_active = true; // Important: mark as active
                 $work_period->chain_id = wp_generate_uuid4();
+                $work_period->custom_date = null; // For regular weekly schedule
                 
                 // Save the work period
                 if ( $work_period->save() ) {
