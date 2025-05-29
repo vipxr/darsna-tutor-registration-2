@@ -296,11 +296,16 @@ class Darsna_Tutor_Admin {
                 </thead>
                 <tbody>
                     <?php if ( empty( $agents ) ) : ?>
+                        <?php error_log('Darsna Admin: Displaying "No agents found" message'); ?>
                         <tr>
                             <td colspan="8" class="no-items"><?php esc_html_e( 'No agents found.', 'darsna-tutor' ); ?></td>
                         </tr>
                     <?php else : ?>
-                        <?php foreach ( $agents as $agent ) : ?>
+                        <?php 
+                        error_log('Darsna Admin: Starting to render ' . count($agents) . ' agent rows');
+                        foreach ( $agents as $index => $agent ) : 
+                            error_log('Darsna Admin: Rendering agent row ' . ($index + 1) . ' for agent ID: ' . $agent->id);
+                        ?>
                             <tr data-agent-id="<?php echo esc_attr( $agent->id ); ?>">
                                 <th class="check-column">
                                     <input type="checkbox" name="agent[]" value="<?php echo esc_attr( $agent->id ); ?>">
@@ -333,11 +338,34 @@ class Darsna_Tutor_Admin {
                                 </td>
                                 <td class="column-services">
                                     <?php 
-                                    $services = $this->get_agent_services( $agent->id );
-                                    echo esc_html( implode( ', ', array_column( $services, 'name' ) ) );
+                                    try {
+                                        error_log('Darsna Admin: Getting services for agent ID: ' . $agent->id);
+                                        $services = $this->get_agent_services( $agent->id );
+                                        error_log('Darsna Admin: Retrieved ' . count($services) . ' services for agent ' . $agent->id);
+                                        
+                                        if (!empty($services)) {
+                                            $service_names = array_column( $services, 'name' );
+                                            echo esc_html( implode( ', ', $service_names ) );
+                                        } else {
+                                            echo esc_html__( 'No services', 'darsna-tutor' );
+                                        }
+                                    } catch (Exception $e) {
+                                        error_log('Darsna Admin: Error getting services for agent ' . $agent->id . ': ' . $e->getMessage());
+                                        echo esc_html__( 'Error loading services', 'darsna-tutor' );
+                                    }
                                     ?>
                                 </td>
-                                <td class="column-rate">$<?php echo esc_html( number_format( $agent->hourly_rate ?? 0, 2 ) ); ?></td>
+                                <td class="column-rate">
+                                    <?php 
+                                    try {
+                                        $rate = $agent->hourly_rate ?? 0;
+                                        echo '$' . esc_html( number_format( $rate, 2 ) );
+                                    } catch (Exception $e) {
+                                        error_log('Darsna Admin: Error displaying rate for agent ' . $agent->id . ': ' . $e->getMessage());
+                                        echo '$0.00';
+                                    }
+                                    ?>
+                                </td>
                                 <td class="column-created"><?php echo esc_html( date( 'Y-m-d', strtotime( $agent->created_at ) ) ); ?></td>
                                 <td class="column-actions">
                                     <?php if ( $agent->status === 'active' ) : ?>
@@ -351,7 +379,9 @@ class Darsna_Tutor_Admin {
                                     <?php endif; ?>
                                 </td>
                             </tr>
+                            <?php error_log('Darsna Admin: Successfully rendered row for agent ID: ' . $agent->id); ?>
                         <?php endforeach; ?>
+                        <?php error_log('Darsna Admin: Finished rendering all agent rows'); ?>
                     <?php endif; ?>
                 </tbody>
             </table>
