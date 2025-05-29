@@ -96,6 +96,10 @@
 }
 
 .tab-content {
+    display: block;
+}
+
+.tab-content.hidden {
     display: none;
 }
 
