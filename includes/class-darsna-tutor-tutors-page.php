@@ -536,9 +536,6 @@ class Darsna_Tutor_Tutors_Page {
             
             <div class="latepoint-resource-item-avatar">
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="latepoint-resource-avatar">
-                <?php if (!empty($tutor->country)): ?>
-                    <div class="enhanced-country-badge"><?php echo esc_html($tutor->country); ?></div>
-                <?php endif; ?>
             </div>
             
             <div class="latepoint-resource-item-info">
