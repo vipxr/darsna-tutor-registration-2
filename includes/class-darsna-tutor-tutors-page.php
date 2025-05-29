@@ -145,9 +145,8 @@ class Darsna_Tutor_Tutors_Page {
         foreach ($results as &$tutor) {
             // Get additional data from WordPress user meta if wp_user_id exists
             if (isset($tutor->wp_user_id)) {
-                $country_code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
-                $countries = WC()->countries;
-                $tutor->country = $countries->get_country_name( $country_code ) ?: $country_code;
+                $code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
+                $tutor->country = WC()->countries->countries[ $code ] ?? '';
                 $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
                 $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
                 $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
@@ -643,9 +642,8 @@ class Darsna_Tutor_Tutors_Page {
         $tutor = $wpdb->get_row($query);
         
         if ($tutor && isset($tutor->wp_user_id)) {
-            $country_code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
-            $countries = WC()->countries;
-            $tutor->country = $countries->get_country_name( $country_code ) ?: $country_code;
+            $code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
+            $tutor->country = WC()->countries->countries[ $code ] ?? '';            
             $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
             $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
             $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
