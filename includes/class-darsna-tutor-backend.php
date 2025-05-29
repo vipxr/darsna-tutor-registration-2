@@ -369,6 +369,11 @@ class Darsna_Tutor_Backend {
      * Set agent schedule using LatePoint API
      */
     public function set_agent_schedule( int $user_id, array $schedule ): bool {
+
+        error_log( 'WorkPeriodsRepository exists? '. (class_exists( 'OsRepositories\WorkPeriodsRepository' ) ? 'yes' : 'no') );
+        error_log( 'sync_agent_work_periods exists? '. (method_exists( 'OsRepositories\WorkPeriodsRepository', 'sync_agent_work_periods' ) ? 'yes' : 'no') );
+
+
         // Must have at least one day selected
         if ( empty( $schedule['days'] ) ) {
             return false;
