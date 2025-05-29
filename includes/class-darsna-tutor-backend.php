@@ -68,6 +68,12 @@ class Darsna_Tutor_Backend {
         // Hook into agent creation/update
         add_action('latepoint_agent_created', [$this, 'sync_darsna_agent_schedule'], 10, 1);
         add_action('latepoint_agent_updated', [$this, 'sync_darsna_agent_schedule'], 10, 1);
+        
+        // Hook into WordPress admin to ensure custom schedule detection
+        add_action('admin_init', [$this, 'ensure_darsna_agent_schedules'], 20);
+        
+        // Hook into admin footer to fix custom schedule checkbox
+        add_action('admin_footer', [$this, 'fix_custom_schedule_checkbox'], 10);
     }
     
     /**
@@ -95,6 +101,74 @@ class Darsna_Tutor_Backend {
             // Additional processing if needed
         }
         return $model;
+    }
+    
+    /**
+     * Ensure all Darsna agents have proper schedules
+     */
+    public function ensure_darsna_agent_schedules() {
+        // Only run on LatePoint admin pages
+        if (!is_admin() || !isset($_GET['page']) || strpos($_GET['page'], 'latepoint') === false) {
+            return;
+        }
+        
+        global $wpdb;
+        
+        // Get all Darsna agents (agents with external_id that corresponds to latepoint_agent users)
+        $agents = $wpdb->get_results(
+            "SELECT id, external_id FROM {$wpdb->prefix}latepoint_agents WHERE external_id IS NOT NULL AND external_id != ''"
+        );
+        
+        foreach ($agents as $agent) {
+            if ($agent->external_id && user_can($agent->external_id, 'latepoint_agent')) {
+                // Verify this Darsna agent has a schedule
+                $this->verify_agent_schedule_exists($agent->id);
+            }
+        }
+    }
+    
+    /**
+     * Fix custom schedule checkbox for Darsna agents
+     */
+    public function fix_custom_schedule_checkbox() {
+        // Only run on agent edit pages
+        if (!is_admin() || !isset($_GET['page']) || $_GET['page'] !== 'latepoint_agents' || !isset($_GET['action']) || $_GET['action'] !== 'edit_form') {
+            return;
+        }
+        
+        if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
+            return;
+        }
+        
+        $agent_id = intval($_GET['id']);
+        
+        // Check if this is a Darsna agent
+        $user_id = $this->get_user_id_by_agent_id($agent_id);
+        if (!$user_id || !user_can($user_id, 'latepoint_agent')) {
+            return;
+        }
+        
+        // Check if agent has work periods
+        global $wpdb;
+        $work_periods_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}latepoint_work_periods WHERE agent_id = %d AND service_id = 0 AND location_id = 0 AND custom_date IS NULL",
+            $agent_id
+        ));
+        
+        if ($work_periods_count > 0) {
+            echo '<script type="text/javascript">
+            jQuery(document).ready(function($) {
+                // Wait for the form to load
+                setTimeout(function() {
+                    var customScheduleCheckbox = $("input[name=\'is_custom_schedule\']");
+                    if (customScheduleCheckbox.length && !customScheduleCheckbox.is(":checked")) {
+                        customScheduleCheckbox.prop("checked", true).trigger("change");
+                        console.log("Darsna: Fixed custom schedule checkbox for agent ' . $agent_id . '");
+                    }
+                }, 500);
+            });
+            </script>';
+        }
     }
     
     /**
