@@ -117,13 +117,13 @@ class Darsna_Tutor_Backend {
         
         global $wpdb;
         
-        // Get all Darsna agents (agents with external_id that corresponds to latepoint_agent users)
+        // Get all Darsna agents (agents with wp_user_id that corresponds to latepoint_agent users)
         $agents = $wpdb->get_results(
-            "SELECT id, external_id FROM {$wpdb->prefix}latepoint_agents WHERE external_id IS NOT NULL AND external_id != ''"
+            "SELECT id, wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id IS NOT NULL AND wp_user_id != 0"
         );
         
         foreach ($agents as $agent) {
-            if ($agent->external_id && user_can($agent->external_id, 'latepoint_agent')) {
+            if ($agent->wp_user_id && user_can($agent->wp_user_id, 'latepoint_agent')) {
                 // Verify this Darsna agent has a schedule
                 $this->verify_agent_schedule_exists($agent->id);
             }
@@ -243,8 +243,8 @@ class Darsna_Tutor_Backend {
      * Sync Darsna agent schedule when LatePoint agent is created/updated
      */
     public function sync_darsna_agent_schedule($agent) {
-        if (is_object($agent) && isset($agent->external_id)) {
-            $user_id = $agent->external_id;
+        if (is_object($agent) && isset($agent->wp_user_id)) {
+            $user_id = $agent->wp_user_id;
             if ($user_id && user_can($user_id, 'latepoint_agent')) {
                 // Verify schedule exists
                 $this->verify_agent_schedule_exists($agent->id);
@@ -280,9 +280,9 @@ class Darsna_Tutor_Backend {
     private function get_user_id_by_agent_id($agent_id) {
         global $wpdb;
         
-        // Try to find user by agent external_id first
+        // Try to find user by agent wp_user_id first
         $user_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT external_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
             $agent_id
         ));
         
@@ -343,8 +343,8 @@ class Darsna_Tutor_Backend {
         error_log("Work periods: " . print_r($work_periods, true));
         
         // Check user role
-        if ($agent && $agent->external_id) {
-            $user = get_userdata($agent->external_id);
+        if ($agent && $agent->wp_user_id) {
+            $user = get_userdata($agent->wp_user_id);
             if ($user) {
                 error_log("User roles: " . print_r($user->roles, true));
             }
