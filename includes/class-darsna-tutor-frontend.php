@@ -219,7 +219,7 @@ class Darsna_Tutor_Frontend {
         echo '<span class="woocommerce-form__label-text">' . __( 'Enable Urgent Help Service', 'darsna-tutor' ) . '</span>';
         echo '</label>';
         echo '</p>';
-        echo '<p class="description urgent-help-description">' . __( 'Enabling this option guarantees that your service will be booked within six hours at twice the normal price for your selected subjects.', 'darsna-tutor' ) . '</p>';
+        echo '<p class="description urgent-help-description">' . __( 'Enabling this option makes your service pricing x2 if booked within six hours and this is called urgent help service, otherwise it will have the normal pricing all the time.', 'darsna-tutor' ) . '</p>';
         echo '</div>';
     }
     
