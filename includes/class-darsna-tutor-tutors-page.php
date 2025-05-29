@@ -284,33 +284,23 @@ class Darsna_Tutor_Tutors_Page {
     private function get_avatar_url($tutor_id) {
         global $wpdb;
         
-        // First try to get LatePoint avatar_id from agents table
-        $avatar_id = $wpdb->get_var($wpdb->prepare(
-            "SELECT avatar_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-            $tutor_id
-        ));
-        
-        if ($avatar_id) {
-            $avatar_url = wp_get_attachment_image_url($avatar_id, 'thumbnail');
-            if ($avatar_url) {
-                return $avatar_url;
-            }
-        }
-        
-        // Fallback to WordPress user avatar if wp_user_id exists
+        // Get WordPress user ID from LatePoint agent
         $wp_user_id = $wpdb->get_var($wpdb->prepare(
             "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
             $tutor_id
         ));
         
         if ($wp_user_id) {
-            $avatar_url = get_avatar_url($wp_user_id, array('size' => 100));
+            $avatar_url = get_avatar_url($wp_user_id, array(
+                'size' => 120,
+                'default' => 'identicon'
+            ));
             if ($avatar_url) {
                 return $avatar_url;
             }
         }
         
-        // Default avatar
+        // Default avatar if no WordPress user is linked
         return 'data:image/svg+xml;base64,' . base64_encode('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="#e1e5e9"/><circle cx="50" cy="35" r="15" fill="#9ca3af"/><path d="M20 80c0-16.569 13.431-30 30-30s30 13.431 30 30" fill="#9ca3af"/></svg>');
     }
     
