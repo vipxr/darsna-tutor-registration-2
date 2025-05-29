@@ -438,10 +438,19 @@ class Darsna_Tutor_Backend {
                 $work_period->custom_date = null; // For regular weekly schedule
                 
                 // Save the work period
-                if ( $work_period->save() ) {
+                $save_result = $work_period->save();
+                if ( $save_result ) {
                     error_log( "Darsna: Successfully created work period for day {$day} -> weekday {$week_day_number} (ID: {$work_period->id})" );
                 } else {
-                    error_log( "Darsna: Failed to save work period for day {$day}" );
+                    error_log( "Darsna: Failed to save work period for day {$day}. Errors: " . print_r( $work_period->get_errors(), true ) );
+                    // Try fallback method for this specific day
+                    $fallback_schedule = [
+                        'days' => [$week_day_number],
+                        'start' => $day_data['start_time'],
+                        'end' => $day_data['end_time'],
+                        'location_id' => $location_id
+                    ];
+                    $this->set_agent_schedule_fallback( $agent_id, $fallback_schedule );
                 }
             }
 
