@@ -183,9 +183,6 @@
 /* Urgent Help Section Styling */
 .urgent-help-section {
     margin: 20px 0;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border: 1px solid #e9ecef;
     border-radius: 5px;
 }
 
@@ -240,10 +237,6 @@
 
 #tutor-registration-fields .error {
     color: #e74c3c;
-    background: #ffffff;
-    border: 1px solid #dedede;
-    padding: 10px;
-    border-radius: 4px;
     margin: 10px 0;
 }
 

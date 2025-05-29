@@ -213,7 +213,6 @@ class Darsna_Tutor_Frontend {
         $urgent_help_enabled = isset( $_POST['tutor_urgent_help'] ) ? 1 : 0;
         
         echo '<div class="urgent-help-section">';
-        echo '<h4>' . __( 'Urgent Help Extra Pricing', 'darsna-tutor' ) . '</h4>';
         echo '<p class="form-row form-row-wide">';
         echo '<label class="woocommerce-form__label woocommerce-form__label-for-checkbox checkbox">';
         echo '<input type="checkbox" class="woocommerce-form__input woocommerce-form__input-checkbox input-checkbox" name="tutor_urgent_help" id="tutor_urgent_help" value="1"' . checked( $urgent_help_enabled, 1, false ) . ' />';
