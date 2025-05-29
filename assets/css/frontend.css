@@ -128,57 +128,7 @@
     background: #005a87;
 }
 
-/* Urgent Rate Styling */
-.urgent-rate-container {
-    display: none; /* Initially hidden, shown by JavaScript when rate is selected */
-    margin-top: 15px;
-    padding: 15px;
-    background: #fff3cd;
-    border: 1px solid #ffeaa7;
-    border-radius: 4px;
-    border-left: 4px solid #f39c12;
-}
 
-.urgent-rate-container label {
-    color: #856404;
-    font-weight: bold;
-    margin-bottom: 5px;
-    display: block;
-}
-
-.urgent-rate-container .description {
-    color: #856404;
-    font-size: 12px;
-    margin-top: 5px;
-    margin-bottom: 0;
-}
-
-.urgent-rate-select {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-    background: white;
-}
-
-/* Urgent Rate Error Styling */
-.urgent-rate-error {
-    border-left: 4px solid #d63638;
-    background-color: #fef7f7;
-}
-
-.urgent-rate-select.error {
-    border-color: #d63638;
-    box-shadow: 0 0 0 1px #d63638;
-}
-
-.urgent-rate-error-message {
-    color: #d63638 !important;
-    font-size: 12px !important;
-    margin-top: 5px !important;
-    margin-bottom: 0 !important;
-    font-weight: 500;
-}
 
 /* Urgent Help Section Styling */
 .urgent-help-section {

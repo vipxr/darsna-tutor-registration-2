@@ -143,50 +143,32 @@ class Darsna_Tutor_Frontend {
     private function render_service_row( $services, $index, $service_data = [] ): void {
         $service_id = $service_data['service_id'] ?? '';
         $rate = $service_data['rate'] ?? '';
-        $urgent_rate = $service_data['urgent_rate'] ?? '';
-        
         echo '<div class="service-row" data-index="' . $index . '">';
         
-        // Service selection
-        echo '<div class="service-select">';
+        // Subject selection
+        echo '<div class="subject-selection">';
         echo '<label>' . __( 'Subject:', 'darsna-tutor' ) . '</label>';
-        echo '<select name="tutor_services[' . $index . '][service_id]" class="service-dropdown" required>';
+        echo '<select name="tutor_services[' . $index . '][subject_id]" class="subject-select">';
         echo '<option value="">' . __( 'Select a subject...', 'darsna-tutor' ) . '</option>';
         
-        foreach ( $services as $service ) {
-            $selected = selected( $service_id, $service->id, false );
-            $is_urgent_help = ( strtolower( $service->name ) === 'urgent help' ) ? 'data-is-urgent="true"' : '';
-            echo "<option value='{$service->id}' data-default-rate='{$service->charge_amount}' {$is_urgent_help}{$selected}>{$service->name}</option>";
+        foreach ( $subjects as $subject ) {
+            $selected = selected( $subject_id, $subject->id, false );
+            echo '<option value="' . esc_attr( $subject->id ) . '" ' . $selected . '>' . esc_html( $subject->name ) . '</option>';
         }
         
         echo '</select>';
         echo '</div>';
         
-        // Rate selection
-        echo '<div class="service-rate">';
-        echo '<label>' . __( 'Your Rate (USD):', 'darsna-tutor' ) . '</label>';
-        echo '<select name="tutor_services[' . $index . '][rate]" class="rate-select" required>';
-        echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
+        // Rate selection (shown when subject is selected)
+        echo '<div class="rate-selection">';
+        echo '<label>' . __( 'Hourly Rate:', 'darsna-tutor' ) . '</label>';
+        echo '<select name="tutor_services[' . $index . '][hourly_rate]" class="rate-select">';
+        echo '<option value="">' . __( 'Select hourly rate...', 'darsna-tutor' ) . '</option>';
         
         // Generate rate options from $5 to $50
-        for ( $i = 5; $i <= 50; $i+=5  ) {
-            $selected = selected( $rate, $i, false );
-            echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
-        }
-        
-        echo '</select>';
-        echo '</div>';
-        
-        // Urgent rate selection (shown when rate is selected)
-        echo '<div class="urgent-rate-container">';
-        echo '<label>' . __( 'Urgent Rate (within 6 hours):', 'darsna-tutor' ) . '</label>';
-        echo '<select name="tutor_services[' . $index . '][urgent_rate]" class="urgent-rate-select">';
-        echo '<option value="">' . __( 'Select urgent rate...', 'darsna-tutor' ) . '</option>';
-        
-        // Generate urgent rate options from $10 to $100 (higher rates for urgent bookings)
-        for ( $i = 10; $i <= 100; $i+=5  ) {
-            $selected = selected( $urgent_rate, $i, false );
-            echo "<option value='{$i}'{$selected}>\${$i}/hour</option>";
+        for ( $i = 5; $i <= 50; $i++ ) {
+            $selected = selected( $hourly_rate, $i, false );
+            echo '<option value="' . $i . '" ' . $selected . '>$' . $i . '/hour</option>';
         }
         
         echo '</select>';

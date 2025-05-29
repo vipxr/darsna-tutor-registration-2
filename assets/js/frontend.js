@@ -108,9 +108,6 @@
             if ($select.hasClass('service-dropdown')) {
                 const $row = $select.closest('.service-row');
                 const $rateSelect = $row.find('.rate-select');
-                const $urgentContainer = $row.find('.urgent-rate-container');
-                const $urgentSelect = $row.find('.urgent-rate-select');
-                
                 if (serviceId) {
                     TutorRegistration.clearFieldError($select);
                     // Auto-fill default rate if available and rate not selected
@@ -122,16 +119,8 @@
                             $rateSelect.val(closestRate);
                         }
                     }
-                    
-                    // Check if rate is already selected to show urgent rate field
-                    if ($rateSelect.val()) {
-                        $urgentContainer.show();
-                    }
                 } else {
                     TutorRegistration.showFieldError($select, 'Please select a teaching subject');
-                    // Hide urgent rate field when no service selected
-                    $urgentContainer.hide();
-                    $urgentSelect.prop('required', false).val('');
                 }
             } else {
                 // Legacy single service handling
@@ -512,34 +501,10 @@
         
         // Rate select validation (delegated)
         $(document).on('change', '.rate-select', function() {
-            const $rateSelect = $(this);
-            const $row = $rateSelect.closest('.service-row');
-            const $urgentContainer = $row.find('.urgent-rate-container');
-            const $urgentSelect = $row.find('.urgent-rate-select');
-            
-            // Show urgent rate field when a rate is selected
-            if ($rateSelect.val()) {
-                $urgentContainer.show();
-                // Validate urgent rate if it's already selected
-                if ($urgentSelect.val()) {
-                    validateUrgentRate($rateSelect, $urgentSelect);
-                }
-            } else {
-                $urgentContainer.hide();
-            }
-            
             validateServices();
         });
         
-        // Urgent rate validation (delegated)
-        $(document).on('change', '.urgent-rate-select', function() {
-            const $urgentSelect = $(this);
-            const $row = $urgentSelect.closest('.service-row');
-            const $rateSelect = $row.find('.rate-select');
-            
-            validateUrgentRate($rateSelect, $urgentSelect);
-            validateServices();
-        });
+
         
         // Initial validation
         validateServices();
@@ -575,38 +540,7 @@
         }
     }
     
-    /**
-     * Validate urgent rate is higher than normal rate
-     */
-    function validateUrgentRate($rateSelect, $urgentSelect) {
-        const normalRate = parseFloat($rateSelect.val()) || 0;
-        const urgentRate = parseFloat($urgentSelect.val()) || 0;
-        const $row = $rateSelect.closest('.service-row');
-        const $urgentContainer = $row.find('.urgent-rate-container');
-        
-        // Remove existing error styling
-        $urgentContainer.removeClass('urgent-rate-error');
-        $urgentSelect.removeClass('error');
-        
-        // Remove existing error message
-        $urgentContainer.find('.urgent-rate-error-message').remove();
-        
-        if (urgentRate > 0 && normalRate > 0) {
-            if (urgentRate <= normalRate) {
-                // Add error styling
-                $urgentContainer.addClass('urgent-rate-error');
-                $urgentSelect.addClass('error');
-                
-                // Add error message
-                const errorMessage = '<p class="urgent-rate-error-message" style="color: #d63638; font-size: 12px; margin-top: 5px;">Urgent rate must be higher than the normal rate ($' + normalRate + '/hour)</p>';
-                $urgentContainer.append(errorMessage);
-                
-                return false;
-            }
-        }
-        
-        return true;
-    }
+
     
     /**
      * Validate services
@@ -622,25 +556,14 @@
             const $row = $(this);
             const serviceId = $row.find('.service-dropdown').val();
             const rate = parseFloat($row.find('.rate-select').val()) || 0;
-            const $rateSelect = $row.find('.rate-select');
-            const $urgentSelect = $row.find('.urgent-rate-select');
-            
             // Reset row styling
             $row.removeClass('error valid');
             
             if (serviceId && rate > 0) {
-                // Validate urgent rate if present
-                let urgentRateValid = true;
-                if ($urgentSelect.val()) {
-                    urgentRateValid = validateUrgentRate($rateSelect, $urgentSelect);
-                }
-                
                 // Check for duplicates
                 if (selectedServices.includes(serviceId)) {
                     $row.addClass('error');
                     hasDuplicate = true;
-                } else if (!urgentRateValid) {
-                    $row.addClass('error');
                 } else {
                     $row.addClass('valid');
                     selectedServices.push(serviceId);
