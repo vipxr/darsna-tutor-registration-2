@@ -97,7 +97,7 @@
 /* Tutors Grid */
 .tutors-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
     gap: 24px;
     margin-bottom: 32px;
 }
@@ -523,15 +523,15 @@
 }
 
 .enhanced-tutors-grid[data-columns="2"] {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
 }
 
 .enhanced-tutors-grid[data-columns="3"] {
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
 .enhanced-tutors-grid[data-columns="4"] {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 /* Enhanced Tutor Item */
