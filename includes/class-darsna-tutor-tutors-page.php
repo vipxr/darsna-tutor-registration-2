@@ -560,6 +560,18 @@ class Darsna_Tutor_Tutors_Page {
                         <option value="100+">$100+/hr</option>
                     </select>
                     
+                    <div class="enhanced-urgent-help-group">
+                        <label class="enhanced-urgent-help-checkbox">
+                            <input type="checkbox" id="enhanced-urgent-help-filter" value="yes">
+                            <span class="enhanced-checkmark">⚡</span>
+                            <span class="enhanced-checkbox-label">Urgent Help</span>
+                        </label>
+                        <div class="enhanced-filter-tip enhanced-urgent-help-tip visible">
+                            <span class="enhanced-tip-icon">💡</span>
+                            <span class="enhanced-tip-text">6hr response</span>
+                        </div>
+                    </div>
+                    
                     <select id="enhanced-sort-filter" class="enhanced-filter-select">
                         <option value="name">Sort by Name</option>
                         <option value="price-low">Price: Low to High</option>

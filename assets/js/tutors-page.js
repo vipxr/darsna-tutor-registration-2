@@ -238,6 +238,7 @@
         const $enhancedSubjectFilter = $('#enhanced-subject-filter');
         const $enhancedCountryFilter = $('#enhanced-country-filter');
         const $enhancedPriceFilter = $('#enhanced-price-filter');
+        const $enhancedUrgentHelpFilter = $('#enhanced-urgent-help-filter');
         const $enhancedSortFilter = $('#enhanced-sort-filter');
         const $enhancedClearButton = $('#enhanced-clear-filters');
         const $enhancedGrid = $('#enhanced-tutors-grid');
@@ -267,8 +268,17 @@
         $enhancedSubjectFilter.on('change', handleEnhancedFilters);
         $enhancedCountryFilter.on('change', handleEnhancedFilters);
         $enhancedPriceFilter.on('change', handleEnhancedFilters);
+        $enhancedUrgentHelpFilter.on('change', handleEnhancedFilters);
         $enhancedSortFilter.on('change', handleEnhancedFilters);
         $enhancedClearButton.on('click', clearEnhancedFilters);
+        
+        // Handle enhanced checkbox label clicks
+        $('.enhanced-urgent-help-checkbox').on('click', function(e) {
+            if (e.target.type !== 'checkbox') {
+                const checkbox = $(this).find('input[type="checkbox"]');
+                checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
+            }
+        });
         
         // Enhanced popup handlers
         $(document).on('click', '.enhanced-view-details', handleEnhancedViewDetails);
@@ -290,6 +300,7 @@
                 country: $enhancedCountryFilter.val(),
                 subject: $enhancedSubjectFilter.val(),
                 price_range: $enhancedPriceFilter.val(),
+                urgent_help: $enhancedUrgentHelpFilter.is(':checked') ? 'yes' : '',
                 sort: $enhancedSortFilter.val()
             };
             
@@ -413,6 +424,7 @@
             $enhancedSubjectFilter.val('');
             $enhancedCountryFilter.val('');
             $enhancedPriceFilter.val('');
+            $enhancedUrgentHelpFilter.prop('checked', false);
             $enhancedSortFilter.val('name');
             
             handleEnhancedFilters();
