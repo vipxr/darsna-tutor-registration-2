@@ -153,116 +153,8 @@
 }
 
 /* ==========================================================================
-   Schedule Section
+   Schedule Section Removed - Handled by LatePoint
    ========================================================================== */
-
-.tutor-schedule-section {
-    margin-top: 20px;
-    padding: 15px;
-    background: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-}
-
-.tutor-schedule-section h4 {
-    margin: 0 0 15px 0;
-    color: #333;
-    font-size: 1.2em;
-}
-
-.schedule-days {
-    margin-bottom: 20px;
-}
-
-.schedule-days > label {
-    font-weight: 600;
-    margin-bottom: 10px;
-    display: block;
-    color: #555;
-}
-
-.days-container {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-top: 10px;
-}
-
-.day-schedule-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    background: #f9f9f9;
-    transition: all 0.2s ease;
-}
-
-.day-schedule-item:hover {
-    background: #f0f0f0;
-    border-color: #ccc;
-}
-
-.day-checkbox {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    min-width: 80px;
-}
-
-.day-checkbox input[type="checkbox"] {
-    margin: 0 8px 0 0;
-}
-
-.day-checkbox input[type="checkbox"]:checked + .day-label {
-    font-weight: 600;
-    color: #0073aa;
-}
-
-.day-label {
-    font-size: 14px;
-    color: #666;
-    font-weight: 500;
-}
-
-.day-time-inputs {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.day-time-inputs input[type="time"] {
-    padding: 6px 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 13px;
-    width: 110px;
-}
-
-.day-time-inputs input[type="time"]:disabled {
-    background: #f5f5f5;
-    color: #999;
-}
-
-.time-separator {
-    font-size: 13px;
-    color: #666;
-    font-weight: 500;
-}
-
-@media (max-width: 768px) {
-    .day-schedule-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-    }
-    
-    .day-time-inputs {
-        width: 100%;
-        justify-content: flex-start;
-    }
-}
 
 /* ==========================================================================
    Error Messages
@@ -286,23 +178,7 @@
         padding: 15px;
     }
     
-    .schedule-days .days-container {
-        gap: 8px;
-    }
-    
-    .day-checkbox {
-        padding: 6px 10px;
-        font-size: 14px;
-    }
-    
-    .schedule-times {
-        flex-direction: column;
-        gap: 15px;
-    }
-    
-    .time-group {
-        min-width: auto;
-    }
+    /* Schedule-related styles removed - handled by LatePoint */
 }
 
 @media (max-width: 480px) {
@@ -310,9 +186,7 @@
         font-size: 1.2em;
     }
     
-    .tutor-schedule-section h4 {
-        font-size: 1.1em;
-    }
+    /* Schedule section styles removed - handled by LatePoint */
     
     #tutor-registration-fields {
         padding: 10px;

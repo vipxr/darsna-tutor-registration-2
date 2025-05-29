@@ -30,11 +30,7 @@
             $(document).on('click', '#add-service-btn', this.addServiceRow);
             $(document).on('click', '.remove-service-btn', this.removeServiceRow);
             
-            // Schedule day enable/disable functionality
-            $(document).on('change', '.day-checkbox input[type="checkbox"]', this.handleDayScheduleToggle);
-            
-            // Time validation
-            $(document).on('change', '#schedule_start, #schedule_end', this.validateTimeRange);
+            // Schedule functionality removed - handled by LatePoint
             
             $(document).on('change', '.service-select', this.handleServiceChange);
             
@@ -53,25 +49,7 @@
          * Initialize field states
          */
         initializeFields: function() {
-            // Set default schedule if none selected
-            const checkedDays = $('.day-checkbox input[type="checkbox"]:checked');
-            if (checkedDays.length === 0) {
-                // Select default days (Mon, Tue, Wed, Thu, Sun)
-                const defaultDays = ['mon', 'tue', 'wed', 'thu', 'sun'];
-                defaultDays.forEach(function(day) {
-                    $(`input[value="${day}"]`).prop('checked', true);
-                });
-            }
-            
-            // Set default times if empty
-            if (!$('#schedule_start').val()) {
-                $('#schedule_start').val('09:00');
-            }
-            if (!$('#schedule_end').val()) {
-                $('#schedule_end').val('17:00');
-            }
-            
-            this.updateScheduleDisplay();
+            // Schedule initialization removed - handled by LatePoint
         },
         
         /**
@@ -105,56 +83,11 @@
         
 
         
-        /**
-         * Handle day schedule toggle for individual day time selection
-         */
-        handleDayScheduleToggle: function() {
-            const $checkbox = $(this);
-            const $dayItem = $checkbox.closest('.day-schedule-item');
-            const dayValue = $checkbox.val();
-            const $timeInputs = $dayItem.find('.day-time-inputs');
-            
-            if ($checkbox.is(':checked')) {
-                $timeInputs.show().find('input').prop('disabled', false);
-            } else {
-                $timeInputs.hide().find('input').prop('disabled', true);
-            }
-        },
+        // handleDayScheduleToggle method removed - handled by LatePoint
         
-        /**
-         * Validate time range
-         */
-        validateTimeRange: function() {
-            const startTime = $('#schedule_start').val();
-            const endTime = $('#schedule_end').val();
-            
-            if (startTime && endTime) {
-                const start = new Date(`2000-01-01 ${startTime}`);
-                const end = new Date(`2000-01-01 ${endTime}`);
-                
-                if (start >= end) {
-                    $('#schedule_end')[0].setCustomValidity('End time must be after start time');
-                    TutorRegistration.showFieldError('#schedule_end', 'End time must be after start time');
-                } else {
-                    $('#schedule_end')[0].setCustomValidity('');
-                    TutorRegistration.clearFieldError('#schedule_end');
-                }
-            }
-        },
+        // validateTimeRange method removed - handled by LatePoint
         
-        /**
-         * Validate schedule days
-         */
-        validateScheduleDays: function() {
-            const checkedDays = $('.day-checkbox input[type="checkbox"]:checked');
-            const daysContainer = $('.schedule-days');
-            
-            if (checkedDays.length === 0) {
-                TutorRegistration.showFieldError('.schedule-days', 'Please select at least one available day');
-            } else {
-                TutorRegistration.clearFieldError('.schedule-days');
-            }
-        },
+        // validateScheduleDays method removed - handled by LatePoint
         
         /**
          * Handle service selection change
@@ -432,10 +365,7 @@
                     }
                     break;
                     
-                case 'schedule_start':
-                case 'schedule_end':
-                    TutorRegistration.validateTimeRange();
-                    break;
+                // Schedule field cases removed
             }
         },
         
@@ -455,29 +385,7 @@
                 }
             });
             
-            // Validate schedule days
-            const checkedDays = $('.day-checkbox input[type="checkbox"]:checked');
-            if (checkedDays.length === 0) {
-                TutorRegistration.showFieldError('.schedule-days', 'Please select at least one available day');
-                isValid = false;
-            }
-            
-            // Validate time range
-            const startTime = $('#schedule_start').val();
-            const endTime = $('#schedule_end').val();
-            
-            if (!startTime || !endTime) {
-                TutorRegistration.showFieldError('.schedule-times', 'Please set your availability hours');
-                isValid = false;
-            } else {
-                const start = new Date(`2000-01-01 ${startTime}`);
-                const end = new Date(`2000-01-01 ${endTime}`);
-                
-                if (start >= end) {
-                    TutorRegistration.showFieldError('.schedule-times', 'End time must be after start time');
-                    isValid = false;
-                }
-            }
+            // Schedule validation removed - handled by LatePoint
             
             if (!isValid) {
                 e.preventDefault();
@@ -494,7 +402,7 @@
          */
         showFieldError: function(field, message) {
             const $field = $(field);
-            const $container = $field.closest('.form-row, .schedule-days, .schedule-times');
+            const $container = $field.closest('.form-row');
             
             // Remove existing error
             $container.find('.field-error').remove();
@@ -511,7 +419,7 @@
          */
         clearFieldError: function(field) {
             const $field = $(field);
-            const $container = $field.closest('.form-row, .schedule-days, .schedule-times');
+            const $container = $field.closest('.form-row');
             
             // Remove error message
             $container.find('.field-error').remove();

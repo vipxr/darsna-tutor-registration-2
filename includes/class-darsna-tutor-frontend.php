@@ -23,7 +23,7 @@ class Darsna_Tutor_Frontend {
     private const MAX_RATE = 50;
     private const RATE_STEP = 5;
     
-    private const DEFAULT_SCHEDULE_DAYS = ['mon', 'tue', 'wed', 'thu', 'sun'];
+    // Schedule constants removed - handled by LatePoint
     private const DEFAULT_WORK_HOURS = ['start' => '09:00', 'end' => '17:00'];
     
     /**
@@ -93,8 +93,7 @@ class Darsna_Tutor_Frontend {
         // Bio field
         $this->render_bio_field();
         
-        // Schedule section
-        $this->render_schedule_section();
+        // Schedule section removed - handled by LatePoint
         
         echo '</div>';
     }
@@ -201,53 +200,7 @@ class Darsna_Tutor_Frontend {
         echo '</p>';
     }
     
-    /**
-     * Render schedule section
-     */
-    private function render_schedule_section(): void {
-        echo '<div class="tutor-schedule-section">';
-        echo '<h4>' . __( 'Availability Schedule', 'darsna-tutor' ) . '</h4>';
-        
-        // Days selection
-        echo '<div class="schedule-days">';
-        echo '<label>' . __( 'Available Days:', 'darsna-tutor' ) . '</label>';
-        
-        $days = [
-            'mon' => __( 'Mon', 'darsna-tutor' ),
-            'tue' => __( 'Tue', 'darsna-tutor' ),
-            'wed' => __( 'Wed', 'darsna-tutor' ),
-            'thu' => __( 'Thu', 'darsna-tutor' ),
-            'fri' => __( 'Fri', 'darsna-tutor' ),
-            'sat' => __( 'Sat', 'darsna-tutor' ),
-            'sun' => __( 'Sun', 'darsna-tutor' )
-        ];
-        
-        echo '<div class="days-container">';
-        foreach ( $days as $key => $label ) {
-            $checked = in_array( $key, $_POST['schedule_days'] ?? self::DEFAULT_SCHEDULE_DAYS ) ? 'checked' : '';
-            $start_time = $_POST['schedule_times'][$key]['start'] ?? self::DEFAULT_WORK_HOURS['start'];
-            $end_time = $_POST['schedule_times'][$key]['end'] ?? self::DEFAULT_WORK_HOURS['end'];
-            $is_enabled = $checked !== '';
-            
-            echo "<div class='day-schedule-item'>";
-            echo "<label class='day-checkbox'>";
-            echo "<input type='checkbox' name='schedule_days[]' value='{$key}' {$checked}>";
-            echo "<span class='day-label'>{$label}</span>";
-            echo "</label>";
-            
-            echo "<div class='day-time-inputs' style='" . ($is_enabled ? '' : 'display:none;') . "'>";
-            echo "<input type='time' name='schedule_times[{$key}][start]' value='" . esc_attr($start_time) . "' " . ($is_enabled ? '' : 'disabled') . ">";
-            echo "<span class='time-separator'>to</span>";
-            echo "<input type='time' name='schedule_times[{$key}][end]' value='" . esc_attr($end_time) . "' " . ($is_enabled ? '' : 'disabled') . ">";
-            echo "</div>";
-            echo "</div>";
-        }
-        echo '</div>';
-        
-        echo '</div>';
-        
-        echo '</div>';
-    }
+    // render_schedule_section method removed - handled by LatePoint
     
     /**
      * Validate checkout form
@@ -288,47 +241,7 @@ class Darsna_Tutor_Frontend {
             }
         }
         
-        // Validate schedule
-        $schedule_days = $_POST['schedule_days'] ?? [];
-        $schedule_times = $_POST['schedule_times'] ?? [];
-        
-        if ( empty( $schedule_days ) ) {
-            $errors[] = __( 'Please select at least one available day.', 'darsna-tutor' );
-        } else {
-            // Validate individual day times
-            foreach ( $schedule_days as $day ) {
-                if ( isset( $schedule_times[$day] ) ) {
-                    $start_time = $schedule_times[$day]['start'] ?? '';
-                    $end_time = $schedule_times[$day]['end'] ?? '';
-                    
-                    if ( empty( $start_time ) || empty( $end_time ) ) {
-                        $day_labels = [
-                            'mon' => __( 'Monday', 'darsna-tutor' ),
-                            'tue' => __( 'Tuesday', 'darsna-tutor' ),
-                            'wed' => __( 'Wednesday', 'darsna-tutor' ),
-                            'thu' => __( 'Thursday', 'darsna-tutor' ),
-                            'fri' => __( 'Friday', 'darsna-tutor' ),
-                            'sat' => __( 'Saturday', 'darsna-tutor' ),
-                            'sun' => __( 'Sunday', 'darsna-tutor' )
-                        ];
-                        $day_name = $day_labels[$day] ?? $day;
-                        $errors[] = sprintf( __( 'Please specify working hours for %s.', 'darsna-tutor' ), $day_name );
-                    } elseif ( $start_time >= $end_time ) {
-                        $day_labels = [
-                            'mon' => __( 'Monday', 'darsna-tutor' ),
-                            'tue' => __( 'Tuesday', 'darsna-tutor' ),
-                            'wed' => __( 'Wednesday', 'darsna-tutor' ),
-                            'thu' => __( 'Thursday', 'darsna-tutor' ),
-                            'fri' => __( 'Friday', 'darsna-tutor' ),
-                            'sat' => __( 'Saturday', 'darsna-tutor' ),
-                            'sun' => __( 'Sunday', 'darsna-tutor' )
-                        ];
-                        $day_name = $day_labels[$day] ?? $day;
-                        $errors[] = sprintf( __( 'End time must be after start time for %s.', 'darsna-tutor' ), $day_name );
-                    }
-                }
-            }
-        }
+        // Schedule validation removed - handled by LatePoint
         
         // Display errors
         foreach ( $errors as $error ) {
@@ -364,33 +277,7 @@ class Darsna_Tutor_Frontend {
         $order->update_meta_data( '_tutor_services', $services_data );
         $order->update_meta_data( '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ?? '' ) );
         
-        // Save schedule data with individual day times
-        $schedule_days = array_map( 'sanitize_text_field', $_POST['schedule_days'] ?? [] );
-        $schedule_times = $_POST['schedule_times'] ?? [];
-        
-        $schedule = [
-            'days' => $schedule_days,
-            'times' => []
-        ];
-        
-        // Process individual day times
-        foreach ( $schedule_days as $day ) {
-            if ( isset( $schedule_times[$day] ) ) {
-                $schedule['times'][$day] = [
-                    'start' => sanitize_text_field( $schedule_times[$day]['start'] ?? self::DEFAULT_WORK_HOURS['start'] ),
-                    'end' => sanitize_text_field( $schedule_times[$day]['end'] ?? self::DEFAULT_WORK_HOURS['end'] )
-                ];
-            }
-        }
-        
-        // Backward compatibility - save legacy format
-        if ( !empty( $schedule_days ) && !empty( $schedule['times'] ) ) {
-            $first_day_times = reset( $schedule['times'] );
-            $schedule['start'] = $first_day_times['start'];
-            $schedule['end'] = $first_day_times['end'];
-        }
-        
-        $order->update_meta_data( '_tutor_schedule', $schedule );
+        // Schedule data saving removed - handled by LatePoint
         $order->save();
         
         // Also save legacy format for backward compatibility

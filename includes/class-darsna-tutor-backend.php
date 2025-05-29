@@ -59,45 +59,12 @@ class Darsna_Tutor_Backend {
      * Setup LatePoint integration hooks
      */
     private function setup_latepoint_hooks(): void {
-        // Hook into LatePoint's calendar rendering
-        add_action('latepoint_calendar_daily_timeline', [$this, 'ensure_agent_schedule_visibility'], 10, 2);
-        
-        // Hook into model queries to include Darsna agents
-        add_filter('latepoint_get_results_as_models', [$this, 'filter_work_period_results'], 10, 1);
-        
-        // Hook into agent creation/update
-        add_action('latepoint_agent_created', [$this, 'sync_darsna_agent_schedule'], 10, 1);
-        add_action('latepoint_agent_updated', [$this, 'sync_darsna_agent_schedule'], 10, 1);
+        // Schedule management removed - users will handle scheduling in LatePoint dashboard
         
         // Admin hooks removed - users will handle scheduling in LatePoint dashboard
     }
     
-    /**
-     * Ensure Darsna agent schedules are visible in calendar
-     */
-    public function ensure_agent_schedule_visibility($target_date, $params) {
-        if (isset($params['agent_id'])) {
-            $agent_id = $params['agent_id'];
-            
-            // Check if this is a Darsna-created agent
-            $user_id = $this->get_user_id_by_agent_id($agent_id);
-            if ($user_id && user_can($user_id, 'latepoint_agent')) {
-                // Ensure work periods exist for this agent
-                $this->verify_agent_schedule_exists($agent_id, $target_date);
-            }
-        }
-    }
-    
-    /**
-     * Filter work period results to ensure Darsna agents are included
-     */
-    public function filter_work_period_results($model) {
-        // Only process OsWorkPeriodModel results
-        if (class_exists('\\LatePoint\\App\\Models\\WorkPeriod') && $model instanceof \LatePoint\App\Models\WorkPeriod) {
-            // Additional processing if needed
-        }
-        return $model;
-    }
+    // Schedule visibility and work period filtering methods removed - users will handle scheduling in LatePoint dashboard
     
     // ensure_darsna_agent_schedules method removed - users will handle scheduling in LatePoint dashboard
     
@@ -166,27 +133,14 @@ class Darsna_Tutor_Backend {
         
         // Check if this is a subscription order
         if ( function_exists( 'wcs_order_contains_subscription' ) && wcs_order_contains_subscription( $order ) ) {
-            $this->schedule_agent_activation( $user_id, $order_id );
+            $this->activate_tutor_agent( $user_id, $order_id );
         } else {
             // For non-subscription orders, activate immediately
             $this->activate_tutor_agent( $user_id, $order_id );
         }
     }
     
-    /**
-     * Schedule agent activation for subscription orders
-     */
-    private function schedule_agent_activation( int $user_id, int $order_id ): void {
-        // For subscription orders, we wait for the subscription to become active
-        $subscriptions = wcs_get_subscriptions_for_order( $order_id );
-        
-        foreach ( $subscriptions as $subscription ) {
-            if ( $subscription->has_status( 'active' ) ) {
-                $this->activate_tutor_agent( $user_id, $order_id );
-                break;
-            }
-        }
-    }
+    // schedule_agent_activation method removed - direct activation used instead
     
     /**
      * Handle subscription status changes
@@ -400,8 +354,8 @@ class Darsna_Tutor_Backend {
                 $rows[] = [
                     'service_id'         => $service['service_id'],
                     'location_id'        => $tutor_data['location_id'] ?? 1,
-                    'is_custom_hours'    => isset( $tutor_data['schedule'] ) ? 1 : 0,
-                    'custom_hours'       => $tutor_data['schedule'] ?? null,
+                    'is_custom_hours'    => 0,
+                'custom_hours'       => null,
                     'is_custom_price'    => 1, // Always custom price for tutors
                     'custom_price'       => $service['rate'],
                     'is_custom_duration' => isset( $tutor_data['custom_duration'] ) ? 1 : 0,
@@ -437,7 +391,7 @@ class Darsna_Tutor_Backend {
                     'agent_id' => $agent_id,
                     'service_id' => $service['service_id'],
                     'location_id' => $tutor_data['location_id'] ?? 1,
-                    'is_custom_hours' => isset( $tutor_data['schedule'] ) ? 1 : 0,
+                    'is_custom_hours' => 0,
                     'is_custom_price' => 1, // Always custom price for tutors
                     'is_custom_duration' => isset( $tutor_data['custom_duration'] ) ? 1 : 0,
                     'created_at' => current_time('mysql'),
@@ -534,8 +488,8 @@ class Darsna_Tutor_Backend {
             // New multi-service format
             return [
                 'services' => $services_data,
-                'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
-                'schedule' => $order->get_meta( '_tutor_schedule' ) ?: []
+                'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) )
+                // Schedule data removed - handled by LatePoint
             ];
         }
         
@@ -553,8 +507,8 @@ class Darsna_Tutor_Backend {
                 'service_id' => (int) $service_id,
                 'rate' => (float) $hourly_rate
             ]],
-            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) ),
-            'schedule' => $order->get_meta( '_tutor_schedule' ) ?: []
+            'bio' => sanitize_textarea_field( $order->get_meta( '_tutor_bio' ) )
+            // Schedule data removed - handled by LatePoint
         ];
     }
     
