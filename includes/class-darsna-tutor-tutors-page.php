@@ -449,13 +449,10 @@ class Darsna_Tutor_Tutors_Page {
                         <option value="price-high">Price: High to Low</option>
                     </select>
                     
-                    <div class="enhanced-urgent-help-group">
-                        <label class="enhanced-urgent-help-checkbox">
-                            <input type="checkbox" id="enhanced-urgent-help-filter" value="yes">
-                            <span class="enhanced-checkmark">⚡</span>
-                            <span class="enhanced-checkbox-label">Urgent Help</span>
-                        </label>
-                    </div>
+                    <select id="enhanced-urgent-help-filter" class="enhanced-filter-select">
+                        <option value="">All Tutors</option>
+                        <option value="yes">⚡ Urgent Help Only</option>
+                    </select>
                     
                     <button id="enhanced-clear-filters" class="enhanced-clear-btn">Clear</button>
                 </div>

@@ -123,13 +123,7 @@
         $enhancedSortFilter.on('change', handleEnhancedFilters);
         $enhancedClearButton.on('click', clearEnhancedFilters);
         
-        // Handle enhanced checkbox label clicks
-        $('.enhanced-urgent-help-checkbox').on('click', function(e) {
-            if (e.target.type !== 'checkbox') {
-                const checkbox = $(this).find('input[type="checkbox"]');
-                checkbox.prop('checked', !checkbox.prop('checked')).trigger('change');
-            }
-        });
+
         
         // Enhanced popup handlers
         $(document).on('click', '.enhanced-view-details', handleEnhancedViewDetails);
@@ -151,7 +145,7 @@
                 country: $enhancedCountryFilter.val(),
                 subject: $enhancedSubjectFilter.val(),
                 price_range: $enhancedPriceFilter.val(),
-                urgent_help: $enhancedUrgentHelpFilter.is(':checked') ? 'yes' : '',
+                urgent_help: $enhancedUrgentHelpFilter.val(),
                 sort: $enhancedSortFilter.val()
             };
             
@@ -287,7 +281,7 @@
             $enhancedSubjectFilter.val('');
             $enhancedCountryFilter.val('');
             $enhancedPriceFilter.val('');
-            $enhancedUrgentHelpFilter.prop('checked', false);
+            $enhancedUrgentHelpFilter.val('');
             $enhancedSortFilter.val('name');
             
             handleEnhancedFilters();
