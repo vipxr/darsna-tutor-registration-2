@@ -108,6 +108,13 @@
     cursor: pointer;
     font-size: 12px;
     text-decoration: underline;
+    z-index: 10;
+    padding: 2px 4px;
+    line-height: 1;
+    min-width: auto;
+    height: auto;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .remove-service-btn:hover {

@@ -205,7 +205,7 @@
             $container.append($newRow);
             
             // Focus on the new service dropdown
-            $newRow.find('.service-select').focus();
+            $newRow.find('.service-dropdown').focus();
             
             // Update remove button visibility
             TutorRegistration.updateRemoveButtons();
@@ -293,7 +293,7 @@
             
             $rows.each(function() {
                 const $row = $(this);
-                const serviceId = $row.find('.service-select').val();
+                const serviceId = $row.find('.service-dropdown').val();
                 const rate = parseFloat($row.find('.rate-select').val()) || 0;
                 
                 // Reset row styling
@@ -393,22 +393,32 @@
         handleFormSubmit: function(e) {
             let isValid = true;
             
-            // Validate required fields
-            const requiredFields = ['#tutor_service', '#tutor_rate'];
-            requiredFields.forEach(function(selector) {
-                const field = $(selector);
-                if (!field.val()) {
-                    TutorRegistration.showFieldError(field, 'This field is required');
-                    isValid = false;
+            // Check if we have the new multi-service interface
+            if ($('#tutor-services-container').length > 0) {
+                // Validate multi-service structure
+                isValid = TutorRegistration.validateServices();
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    TutorRegistration.scrollToFirstError();
+                    return false;
                 }
-            });
-            
-            // Schedule validation removed - handled by LatePoint
-            
-            if (!isValid) {
-                e.preventDefault();
-                TutorRegistration.scrollToFirstError();
-                return false;
+            } else {
+                // Legacy single service validation (for backward compatibility)
+                const requiredFields = ['#tutor_service', '#tutor_rate'];
+                requiredFields.forEach(function(selector) {
+                    const field = $(selector);
+                    if (!field.val()) {
+                        TutorRegistration.showFieldError(field, 'This field is required');
+                        isValid = false;
+                    }
+                });
+                
+                if (!isValid) {
+                    e.preventDefault();
+                    TutorRegistration.scrollToFirstError();
+                    return false;
+                }
             }
             
             // Show loading state

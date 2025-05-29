@@ -177,9 +177,6 @@ class Darsna_Tutor_Frontend {
         echo '</select>';
         echo '</div>';
         
-        echo '</select>';
-        echo '</div>';
-        
         // Remove button (visibility controlled by JavaScript)
         echo '<button type="button" class="remove-service-btn button-link-delete">' . __( 'Remove', 'darsna-tutor' ) . '</button>';
         
