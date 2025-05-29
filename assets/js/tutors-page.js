@@ -226,12 +226,11 @@
                 }
                 
                 // Urgent help filter
-                if (filters.urgent_help === 'yes' && !itemData.urgentHelp) {
-                    console.log('Hiding tutor (no urgent help):', itemData.name, 'urgentHelp:', itemData.urgentHelp);
-                    visible = false;
-                }
-                
                 if (filters.urgent_help === 'yes') {
+                    if (!itemData.urgentHelp) {
+                        console.log('Hiding tutor (no urgent help):', itemData.name, 'urgentHelp:', itemData.urgentHelp);
+                        visible = false;
+                    }
                     console.log('Tutor urgent help check:', itemData.name, 'urgentHelp:', itemData.urgentHelp, 'visible:', visible);
                 }
                 
