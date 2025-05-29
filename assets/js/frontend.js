@@ -53,6 +53,11 @@
             
             // Initialize remove button visibility for service rows
             TutorRegistration.updateRemoveButtons();
+            
+            // Initialize add button visibility
+            if (typeof updateAddButtonVisibility === 'function') {
+                updateAddButtonVisibility();
+            }
         },
         
         /**
@@ -505,6 +510,33 @@
         
         // Initialize remove button visibility
         TutorRegistration.updateRemoveButtons();
+        
+        // Initialize add button visibility
+        updateAddButtonVisibility();
+    }
+    
+    /**
+     * Update "Add Another Subject" button visibility
+     */
+    function updateAddButtonVisibility() {
+        const $container = $('#tutor-services-container');
+        const $firstRow = $container.find('.service-row').first();
+        const $addButton = $('#add-service-btn');
+        
+        if ($firstRow.length === 0) {
+            $addButton.hide();
+            return;
+        }
+        
+        const firstServiceId = $firstRow.find('.service-dropdown').val();
+        const firstRate = $firstRow.find('.rate-select').val();
+        
+        // Show add button only if first row is completely filled
+        if (firstServiceId && firstRate) {
+            $addButton.show();
+        } else {
+            $addButton.hide();
+        }
     }
     
     /**
@@ -547,6 +579,9 @@
         } else {
             $container.removeClass('valid').addClass('error');
         }
+        
+        // Control "Add Another Subject" button visibility
+        updateAddButtonVisibility();
         
         return hasValidService && !hasDuplicate;
     }
