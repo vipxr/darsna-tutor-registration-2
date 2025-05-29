@@ -410,6 +410,7 @@ class Darsna_Tutor_Frontend {
      * @return string Modified amount
      */
     public function apply_dynamic_pricing( $amount, $booking, $additional_param = null ) {
+        // Skip pricing for non-AJAX admin requests
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
             return $amount;
         }

@@ -69,14 +69,7 @@ class Darsna_Tutor_Backend {
         add_action('latepoint_agent_created', [$this, 'sync_darsna_agent_schedule'], 10, 1);
         add_action('latepoint_agent_updated', [$this, 'sync_darsna_agent_schedule'], 10, 1);
         
-        // Hook into WordPress admin to ensure custom schedule detection
-        add_action('admin_init', [$this, 'ensure_darsna_agent_schedules'], 10);
-        
-        // Hook into LatePoint agent form to fix custom schedule variables
-        add_action('latepoint_agent_form', [$this, 'fix_agent_form_schedule_variables'], 5);
-        
-        // Hook into admin footer to fix custom schedule checkbox as fallback
-        add_action('admin_footer', [$this, 'fix_custom_schedule_checkbox'], 10);
+        // Admin hooks removed - users will handle scheduling in LatePoint dashboard
     }
     
     /**
@@ -106,29 +99,7 @@ class Darsna_Tutor_Backend {
         return $model;
     }
     
-    /**
-     * Ensure all Darsna agents have proper schedules
-     */
-    public function ensure_darsna_agent_schedules() {
-        // Only run on LatePoint admin pages
-        if (!is_admin() || !isset($_GET['page']) || strpos($_GET['page'], 'latepoint') === false) {
-            return;
-        }
-        
-        global $wpdb;
-        
-        // Get all Darsna agents (agents with wp_user_id that corresponds to latepoint_agent users)
-        $agents = $wpdb->get_results(
-            "SELECT id, wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE wp_user_id IS NOT NULL AND wp_user_id != 0"
-        );
-        
-        foreach ($agents as $agent) {
-            if ($agent->wp_user_id && user_can($agent->wp_user_id, 'latepoint_agent')) {
-                // Verify this Darsna agent has a schedule
-                $this->verify_agent_schedule_exists($agent->id);
-            }
-        }
-    }
+    // ensure_darsna_agent_schedules method removed - users will handle scheduling in LatePoint dashboard
     
     // fix_agent_form_schedule_variables method removed - users will handle scheduling in LatePoint dashboard
     

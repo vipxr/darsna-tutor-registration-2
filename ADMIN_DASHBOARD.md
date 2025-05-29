@@ -37,7 +37,7 @@ The admin dashboard provides a comprehensive interface for managing tutor agents
 ```
 darsna-tutor-registration/
 ├── includes/
-│   ├── class-darsna-tutor-admin.php    # Main admin class
+│   ├── class-darsna-tutor-admin.php    # REMOVED - Admin panel functionality removed
 │   ├── class-darsna-tutor-main.php     # Updated to include admin
 │   ├── class-darsna-tutor-backend.php  # Backend functionality
 │   └── class-darsna-tutor-frontend.php # Frontend functionality
@@ -49,7 +49,9 @@ darsna-tutor-registration/
 └── darsna-tutor-registration.php       # Main plugin file
 ```
 
-## Admin Class (`class-darsna-tutor-admin.php`)
+## Admin Class (`class-darsna-tutor-admin.php`) - REMOVED
+
+**Note: The WordPress admin panel functionality has been completely removed from this plugin. Users will manage their tutor profiles and scheduling directly through the LatePoint dashboard.**
 
 ### Key Methods
 
