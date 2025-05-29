@@ -219,7 +219,8 @@ class Darsna_Tutor_Tutors_Page {
              data-services="<?php echo esc_attr(strtolower($tutor->services)); ?>"
              data-min-price="<?php echo esc_attr($tutor->min_price); ?>"
              data-max-price="<?php echo esc_attr($tutor->max_price); ?>"
-             data-name="<?php echo esc_attr(strtolower($full_name)); ?>">
+             data-name="<?php echo esc_attr(strtolower($full_name)); ?>"
+             data-urgent-help="<?php echo !empty($tutor->urgent_rate) && $tutor->urgent_rate > 0 ? 'yes' : 'no'; ?>">
             
             <div class="tutor-avatar">
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="avatar-img">
