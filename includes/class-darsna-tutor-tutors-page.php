@@ -244,7 +244,7 @@ class Darsna_Tutor_Tutors_Page {
         $price_range = $this->format_price_range($tutor->min_price, $tutor->max_price);
         
         ob_start();
-        ?>
+        ?> 
         <div class="tutor-card" 
              data-country="<?php echo esc_attr($tutor->country); ?>"
              data-services="<?php echo esc_attr(strtolower($tutor->services)); ?>"
