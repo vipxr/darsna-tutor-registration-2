@@ -77,7 +77,7 @@
 /* Clear Button */
 .clear-btn {
     padding: 12px 20px;
-    background: #ef4444;
+    background: #EA8732;
     color: white;
     border: none;
     border-radius: 8px;
@@ -127,7 +127,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+    background: #ea8732;
     opacity: 0;
     transition: opacity 0.3s ease;
 }

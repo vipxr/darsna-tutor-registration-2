@@ -11,19 +11,28 @@
 
 #tutor-registration-fields {
     background: #f9f9f9;
-    border: 1px solid #ddd;
-    border-radius: 8px;
     padding: 20px;
     margin: 20px 0;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    border: 1px solid #ddd;
 }
 
 #tutor-registration-fields h3 {
-    margin: 0 0 20px 0;
+    margin-top: 0;
     color: #333;
-    font-size: 1.4em;
     border-bottom: 2px solid #0073aa;
     padding-bottom: 10px;
+}
+
+#tutor-registration-fields h4 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+#tutor-registration-fields .description {
+    color: #666;
+    font-style: italic;
+    margin-bottom: 15px;
 }
 
 #tutor-registration-fields .form-row {
@@ -31,9 +40,8 @@
 }
 
 #tutor-registration-fields label {
-    font-weight: 600;
+    font-weight: bold;
     color: #555;
-    margin-bottom: 5px;
 }
 
 #tutor-registration-fields .required {
@@ -41,27 +49,106 @@
 }
 
 #tutor-registration-fields select,
-#tutor-registration-fields textarea,
-#tutor-registration-fields input[type="time"] {
+#tutor-registration-fields input[type="text"],
+#tutor-registration-fields input[type="email"],
+#tutor-registration-fields input[type="number"],
+#tutor-registration-fields textarea {
     width: 100%;
-    padding: 10px;
+    padding: 8px 12px;
     border: 1px solid #ccc;
-    border-radius: 4px;
+    border-radius: 3px;
     font-size: 14px;
-    transition: border-color 0.3s ease;
-}
-
-#tutor-registration-fields select:focus,
-#tutor-registration-fields textarea:focus,
-#tutor-registration-fields input[type="time"]:focus {
-    border-color: #0073aa;
-    outline: none;
-    box-shadow: 0 0 5px rgba(0, 115, 170, 0.3);
 }
 
 #tutor-registration-fields textarea {
     resize: vertical;
     min-height: 80px;
+}
+
+/* Multi-Service Styles */
+.tutor-services-section {
+    margin-bottom: 25px;
+}
+
+#tutor-services-container {
+    margin-bottom: 15px;
+}
+
+.service-row {
+    display: flex;
+    align-items: end;
+    gap: 15px;
+    margin-bottom: 15px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    position: relative;
+}
+
+.service-select {
+    flex: 2;
+}
+
+.service-rate {
+    flex: 1;
+}
+
+.service-select label,
+.service-rate label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+}
+
+.remove-service-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: #dc3545;
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+.remove-service-btn:hover {
+    color: #c82333;
+}
+
+#add-service-btn {
+    background: #0073aa;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#add-service-btn:hover {
+    background: #005a87;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .service-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .service-select,
+    .service-rate {
+        flex: none;
+    }
+    
+    .remove-service-btn {
+        position: static;
+        align-self: flex-start;
+        margin-top: 10px;
+    }
 }
 
 /* ==========================================================================

@@ -325,7 +325,139 @@
         if ($('#tutor-registration-fields').length) {
             TutorRegistration.init();
         }
+        
+        // Initialize multi-service functionality
+        initMultiServiceFunctionality();
     });
+    
+    /**
+     * Initialize multi-service functionality
+     */
+    function initMultiServiceFunctionality() {
+        let serviceIndex = $('#tutor-services-container .service-row').length;
+        
+        // Add service button
+        $('#add-service-btn').on('click', function(e) {
+            e.preventDefault();
+            addServiceRow(serviceIndex++);
+        });
+        
+        // Remove service functionality (delegated)
+        $(document).on('click', '.remove-service-btn', function(e) {
+            e.preventDefault();
+            $(this).closest('.service-row').remove();
+            validateServices();
+        });
+        
+        // Service selection change (delegated)
+        $(document).on('change', '.service-dropdown', function() {
+            const $row = $(this).closest('.service-row');
+            const $rateInput = $row.find('.rate-input');
+            const defaultRate = $(this).find('option:selected').data('default-rate');
+            
+            // Auto-fill default rate if rate input is empty
+            if (defaultRate && !$rateInput.val()) {
+                $rateInput.val(parseFloat(defaultRate).toFixed(2));
+            }
+            
+            validateServices();
+        });
+        
+        // Rate input validation (delegated)
+        $(document).on('input change', '.rate-input', function() {
+            validateServices();
+        });
+        
+        // Initial validation
+        validateServices();
+    }
+    
+    /**
+     * Add a new service row
+     */
+    function addServiceRow(index) {
+        const $container = $('#tutor-services-container');
+        const $firstRow = $container.find('.service-row:first');
+        
+        if ($firstRow.length === 0) {
+            console.error('No service row template found');
+            return;
+        }
+        
+        // Clone the first row and update indices
+        const $newRow = $firstRow.clone();
+        
+        // Update form field names and IDs
+        $newRow.find('select, input').each(function() {
+            const name = $(this).attr('name');
+            if (name) {
+                const newName = name.replace(/\[\d+\]/, '[' + index + ']');
+                $(this).attr('name', newName);
+            }
+        });
+        
+        // Clear values
+        $newRow.find('select').val('');
+        $newRow.find('input').val('');
+        
+        // Update data-index
+        $newRow.attr('data-index', index);
+        
+        // Add remove button if it doesn't exist
+        if ($newRow.find('.remove-service-btn').length === 0) {
+            $newRow.append('<button type="button" class="remove-service-btn button-link-delete">Remove</button>');
+        }
+        
+        // Append to container
+        $container.append($newRow);
+        
+        // Focus on the new service dropdown
+        $newRow.find('.service-dropdown').focus();
+    }
+    
+    /**
+     * Validate services
+     */
+    function validateServices() {
+        const $container = $('#tutor-services-container');
+        const $rows = $container.find('.service-row');
+        let hasValidService = false;
+        const selectedServices = [];
+        let hasDuplicate = false;
+        
+        $rows.each(function() {
+            const $row = $(this);
+            const serviceId = $row.find('.service-dropdown').val();
+            const rate = parseFloat($row.find('.rate-input').val()) || 0;
+            
+            // Reset row styling
+            $row.removeClass('error valid');
+            
+            if (serviceId && rate > 0) {
+                // Check for duplicates
+                if (selectedServices.includes(serviceId)) {
+                    $row.addClass('error');
+                    hasDuplicate = true;
+                } else {
+                    $row.addClass('valid');
+                    selectedServices.push(serviceId);
+                    hasValidService = true;
+                }
+            } else if (serviceId || rate > 0) {
+                // Partially filled
+                $row.addClass('error');
+            }
+        });
+        
+        // Update container styling
+        if (hasValidService && !hasDuplicate) {
+            $container.removeClass('error').addClass('valid');
+        } else {
+            $container.removeClass('valid').addClass('error');
+        }
+        
+        return hasValidService && !hasDuplicate;
+    }
     
     /**
      * Handle AJAX errors

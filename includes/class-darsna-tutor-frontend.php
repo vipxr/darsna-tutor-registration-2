@@ -89,11 +89,8 @@ class Darsna_Tutor_Frontend {
         echo '<div id="tutor-registration-fields">';
         echo '<h3>' . __( 'Tutor Registration', 'darsna-tutor' ) . '</h3>';
         
-        // Service selection
+        // Service selection with rates
         $this->render_service_field();
-        
-        // Rate selection
-        $this->render_rate_field();
         
         // Bio field
         $this->render_bio_field();
@@ -105,7 +102,7 @@ class Darsna_Tutor_Frontend {
     }
     
     /**
-     * Render service selection field
+     * Render multiple services selection with custom pricing
      */
     private function render_service_field(): void {
         $services = $this->get_services();
@@ -115,34 +112,74 @@ class Darsna_Tutor_Frontend {
             return;
         }
         
-        echo '<p class="form-row form-row-wide">';
-        echo '<label for="tutor_service">' . __( 'Teaching Subject', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
-        echo '<select name="tutor_service" id="tutor_service" class="select" required>';
-        echo '<option value="">' . __( 'Select a subject...', 'darsna-tutor' ) . '</option>';
+        echo '<div class="tutor-services-section">';
+        echo '<h4>' . __( 'Teaching Subjects & Rates', 'darsna-tutor' ) . ' <span class="required">*</span></h4>';
+        echo '<p class="description">' . __( 'Select the subjects you can teach and set your hourly rate for each.', 'darsna-tutor' ) . '</p>';
         
-        foreach ( $services as $service ) {
-            $selected = selected( $_POST['tutor_service'] ?? '', $service->id, false );
-            echo "<option value='{$service->id}'{$selected}>{$service->name}</option>";
+        echo '<div id="tutor-services-container">';
+        
+        // Get existing services from POST data
+        $existing_services = $_POST['tutor_services'] ?? [];
+        
+        if ( empty( $existing_services ) ) {
+            // Add one empty service row by default
+            $this->render_service_row( $services, 0 );
+        } else {
+            // Render existing services
+            foreach ( $existing_services as $index => $service_data ) {
+                $this->render_service_row( $services, $index, $service_data );
+            }
         }
         
-        echo '</select></p>';
+        echo '</div>';
+        
+        echo '<button type="button" id="add-service-btn" class="button">' . __( 'Add Another Subject', 'darsna-tutor' ) . '</button>';
+        echo '</div>';
     }
     
     /**
-     * Render rate selection field
+     * Render a single service row
      */
-    private function render_rate_field(): void {
-        echo '<p class="form-row form-row-wide">';
-        echo '<label for="tutor_rate">' . __( 'Hourly Rate  (USD)', 'darsna-tutor' ) . ' <span class="required">*</span></label>';
-        echo '<select name="tutor_rate" id="tutor_rate" class="select" required>';
-        echo '<option value="">' . __( 'Select your rate...', 'darsna-tutor' ) . '</option>';
+    private function render_service_row( $services, $index, $service_data = [] ): void {
+        $service_id = $service_data['service_id'] ?? '';
+        $rate = $service_data['rate'] ?? '';
         
-        for ( $rate = self::MIN_RATE; $rate <= self::MAX_RATE; $rate += self::RATE_STEP ) {
-            $selected = selected( $_POST['tutor_rate'] ?? '', $rate, false );
-            echo "<option value='{$rate}'{$selected}>{$rate}</option>";
+        echo '<div class="service-row" data-index="' . $index . '">';
+        
+        // Service selection
+        echo '<div class="service-select">';
+        echo '<label>' . __( 'Subject:', 'darsna-tutor' ) . '</label>';
+        echo '<select name="tutor_services[' . $index . '][service_id]" class="service-dropdown" required>';
+        echo '<option value="">' . __( 'Select a subject...', 'darsna-tutor' ) . '</option>';
+        
+        foreach ( $services as $service ) {
+            $selected = selected( $service_id, $service->id, false );
+            echo "<option value='{$service->id}' data-default-rate='{$service->charge_amount}'{$selected}>{$service->name}</option>";
         }
         
-        echo '</select></p>';
+        echo '</select>';
+        echo '</div>';
+        
+        // Rate input
+        echo '<div class="service-rate">';
+        echo '<label>' . __( 'Your Rate (USD):', 'darsna-tutor' ) . '</label>';
+        echo '<input type="number" name="tutor_services[' . $index . '][rate]" class="rate-input" value="' . esc_attr( $rate ) . '" step="0.01" min="' . self::MIN_RATE . '" max="' . self::MAX_RATE . '" placeholder="' . self::MIN_RATE . '.00" required>';
+        echo '</div>';
+        
+        // Remove button (only show if not the first row)
+        if ( $index > 0 ) {
+            echo '<button type="button" class="remove-service-btn button-link-delete">' . __( 'Remove', 'darsna-tutor' ) . '</button>';
+        }
+        
+        echo '</div>';
+    }
+    
+    /**
+     * Legacy method - kept for backward compatibility
+     */
+    private function render_rate_field(): void {
+        // This method is now handled within render_service_field()
+        // Kept for backward compatibility
     }
     
     /**
@@ -209,15 +246,37 @@ class Darsna_Tutor_Frontend {
     public function validate_checkout(): void {
         $errors = [];
         
-        // Validate service
-        if ( empty( $_POST['tutor_service'] ) ) {
-            $errors[] = __( 'Please select a teaching subject.', 'darsna-tutor' );
-        }
+        // Validate services
+        $services = $_POST['tutor_services'] ?? [];
         
-        // Validate rate
-        $rate = (int) ( $_POST['tutor_rate'] ?? 0 );
-        if ( $rate < self::MIN_RATE || $rate > self::MAX_RATE ) {
-            $errors[] = sprintf( __( 'Please select a valid hourly rate between %d and %d.', 'darsna-tutor' ), self::MIN_RATE, self::MAX_RATE );
+        if ( empty( $services ) ) {
+            $errors[] = __( 'Please select at least one teaching subject.', 'darsna-tutor' );
+        } else {
+            $selected_services = [];
+            
+            foreach ( $services as $index => $service_data ) {
+                $service_id = $service_data['service_id'] ?? '';
+                $rate = floatval( $service_data['rate'] ?? 0 );
+                
+                // Validate service selection
+                if ( empty( $service_id ) ) {
+                    $errors[] = sprintf( __( 'Please select a subject for row %d.', 'darsna-tutor' ), $index + 1 );
+                    continue;
+                }
+                
+                // Check for duplicate services
+                if ( in_array( $service_id, $selected_services ) ) {
+                    $errors[] = __( 'You cannot select the same subject multiple times.', 'darsna-tutor' );
+                    continue;
+                }
+                
+                $selected_services[] = $service_id;
+                
+                // Validate rate
+                if ( $rate < self::MIN_RATE || $rate > self::MAX_RATE ) {
+                    $errors[] = sprintf( __( 'Please enter a valid hourly rate between $%d and $%d for row %d.', 'darsna-tutor' ), self::MIN_RATE, self::MAX_RATE, $index + 1 );
+                }
+            }
         }
         
         // Validate schedule
@@ -250,9 +309,23 @@ class Darsna_Tutor_Frontend {
             return;
         }
         
-        // Save tutor data
-        $order->update_meta_data( '_tutor_service_id', sanitize_text_field( $_POST['tutor_service'] ?? '' ) );
-        $order->update_meta_data( '_tutor_hourly_rate', (int) ( $_POST['tutor_rate'] ?? 0 ) );
+        // Save tutor services data
+        $services_data = [];
+        $tutor_services = $_POST['tutor_services'] ?? [];
+        
+        foreach ( $tutor_services as $service_data ) {
+            $service_id = sanitize_text_field( $service_data['service_id'] ?? '' );
+            $rate = floatval( $service_data['rate'] ?? 0 );
+            
+            if ( ! empty( $service_id ) && $rate > 0 ) {
+                $services_data[] = [
+                    'service_id' => $service_id,
+                    'rate' => $rate
+                ];
+            }
+        }
+        
+        $order->update_meta_data( '_tutor_services', $services_data );
         $order->update_meta_data( '_tutor_bio', sanitize_textarea_field( $_POST['tutor_bio'] ?? '' ) );
         
         // Save schedule data
@@ -264,6 +337,13 @@ class Darsna_Tutor_Frontend {
         
         $order->update_meta_data( '_tutor_schedule', $schedule );
         $order->save();
+        
+        // Also save legacy format for backward compatibility
+        if ( ! empty( $services_data ) ) {
+            $first_service = $services_data[0];
+            $order->update_meta_data( '_tutor_service_id', $first_service['service_id'] );
+            $order->update_meta_data( '_tutor_hourly_rate', $first_service['rate'] );
+        }
     }
     
     /**
