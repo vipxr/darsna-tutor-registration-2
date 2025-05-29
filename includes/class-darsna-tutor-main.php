@@ -104,6 +104,7 @@ if ( ! class_exists( 'Darsna_Tutor_Main' ) ) {
 
             require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-frontend.php';
             require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-backend.php';
+            require_once DARSNA_TUTOR_INCLUDES_PATH . 'class-darsna-tutor-tutors-page.php';
             
             // Include admin dashboard if in admin area
             if (is_admin()) {
