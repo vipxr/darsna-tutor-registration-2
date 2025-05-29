@@ -117,15 +117,15 @@ class Darsna_Tutor_Tutors_Page {
                 a.last_name,
                 a.email,
                 a.phone,
-                a.avatar_image_id,
                 a.bio,
-                a.extra_data,
+                a.features,
+                a.wp_user_id,
                 GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as services,
                 GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices,
                 MIN(COALESCE(cp.charge_amount, s.charge_amount)) as min_price,
                 MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price
             FROM {$wpdb->prefix}latepoint_agents a
-            LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
+            LEFT JOIN {$wpdb->prefix}latepoint_agent_services ags ON a.id = ags.agent_id
             LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
             LEFT JOIN {$wpdb->prefix}latepoint_custom_prices cp ON (
                 cp.agent_id = a.id AND 
@@ -138,15 +138,15 @@ class Darsna_Tutor_Tutors_Page {
         
         $results = $wpdb->get_results($query);
         
-        // Process extra data
+        // Process tutor data and get additional info from user meta
         foreach ($results as &$tutor) {
-            if ($tutor->extra_data) {
-                $extra_data = json_decode($tutor->extra_data, true);
-                $tutor->country = isset($extra_data['country']) ? $extra_data['country'] : '';
-                $tutor->city = isset($extra_data['city']) ? $extra_data['city'] : '';
-                $tutor->experience = isset($extra_data['experience']) ? $extra_data['experience'] : '';
-                $tutor->education = isset($extra_data['education']) ? $extra_data['education'] : '';
-                $tutor->languages = isset($extra_data['languages']) ? $extra_data['languages'] : '';
+            // Get additional data from WordPress user meta if wp_user_id exists
+            if (isset($tutor->wp_user_id)) {
+                $tutor->country = get_user_meta($tutor->wp_user_id, 'billing_country', true) ?: '';
+                $tutor->city = get_user_meta($tutor->wp_user_id, 'billing_city', true) ?: '';
+                $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
+                $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
+                $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
             } else {
                 $tutor->country = '';
                 $tutor->city = '';
@@ -201,7 +201,7 @@ class Darsna_Tutor_Tutors_Page {
     }
     
     private function render_tutor_card($tutor) {
-        $avatar_url = $this->get_avatar_url($tutor->avatar_image_id);
+        $avatar_url = $this->get_avatar_url($tutor->id);
         $full_name = trim($tutor->first_name . ' ' . $tutor->last_name);
         $price_range = $this->format_price_range($tutor->min_price, $tutor->max_price);
         
@@ -286,9 +286,16 @@ class Darsna_Tutor_Tutors_Page {
         return ob_get_clean();
     }
     
-    private function get_avatar_url($avatar_image_id) {
-        if ($avatar_image_id) {
-            $avatar_url = wp_get_attachment_image_url($avatar_image_id, 'thumbnail');
+    private function get_avatar_url($tutor_id) {
+        // Try to get avatar from WordPress user if wp_user_id exists
+        global $wpdb;
+        $wp_user_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
+            $tutor_id
+        ));
+        
+        if ($wp_user_id) {
+            $avatar_url = get_avatar_url($wp_user_id, array('size' => 100));
             if ($avatar_url) {
                 return $avatar_url;
             }
