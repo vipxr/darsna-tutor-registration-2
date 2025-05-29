@@ -366,58 +366,58 @@ class Darsna_Tutor_Backend {
     }
     
     /**
-     * Set agent schedule using LatePoint OsWorkPeriodModel
+     * Set an agent's weekly work periods via LatePoint's model
      */
     public function set_agent_schedule( int $agent_id, array $schedule ): bool {
-        // Must have at least one day selected
+        // 1) need at least one day
         if ( empty( $schedule['days'] ) ) {
             return false;
         }
-        
-        // Check if OsWorkPeriodModel is available
-        if ( ! class_exists( 'OsModels\OsWorkPeriodModel' ) ) {
-            error_log( "Darsna: OsWorkPeriodModel not found, falling back to direct database" );
+
+        // 2) make sure the model exists
+        if ( ! class_exists( '\OsModels\OsWorkPeriodModel' ) ) {
+            error_log( "Darsna: OsWorkPeriodModel not found, falling back" );
             return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
-        
+
         try {
-            error_log( "Darsna: Setting schedule for agent_id: {$agent_id}" );
-            
-            // Convert hh:mm to minutes since midnight
-            $start = $this->time_to_minutes( $schedule['start'] ?? '09:00' );
-            $end = $this->time_to_minutes( $schedule['end'] ?? '17:00' );
+            error_log( "Darsna: Setting schedule for agent_id={$agent_id}" );
+
+            // 3) translate times to minutes
+            $start       = $this->time_to_minutes( $schedule['start']  ?? '09:00' );
+            $end         = $this->time_to_minutes( $schedule['end']    ?? '17:00' );
             $location_id = $schedule['location_id'] ?? 1;
-            
-            // Delete any old periods for this agent
+
+            // 4) delete old work periods
             \OsModels\OsWorkPeriodModel::where( 'agent_id', $agent_id )->delete();
-            
-            // Map keys to LatePoint week_day numbers
+
+            // 5) map days and insert new rows
             $day_map = [
-                'mon' => 1, 'tue' => 2, 'wed' => 3, 'thu' => 4,
-                'fri' => 5, 'sat' => 6, 'sun' => 7
+                'mon'=>1,'tue'=>2,'wed'=>3,'thu'=>4,
+                'fri'=>5,'sat'=>6,'sun'=>7
             ];
-            
-            // Insert a new row for each selected day
             foreach ( $schedule['days'] as $day ) {
-                if ( ! isset( $day_map[ $day ] ) ) {
+                if ( empty( $day_map[ $day ] ) ) {
+                    error_log("Darsna: Skipping unknown day '{$day}'");
                     continue;
                 }
-                \OsModels\OsWorkPeriodModel::create([
-                    'agent_id' => $agent_id,
-                    'service_id' => 0, // 0 = all services
+                $new = \OsModels\OsWorkPeriodModel::create([
+                    'agent_id'    => $agent_id,
+                    'service_id'  => 0,                // all services
                     'location_id' => $location_id,
-                    'week_day' => $day_map[ $day ],
-                    'start_time' => $start,
-                    'end_time' => $end,
-                    'chain_id' => wp_generate_uuid4(),
+                    'week_day'    => $day_map[ $day ],
+                    'start_time'  => $start,
+                    'end_time'    => $end,
+                    'chain_id'    => wp_generate_uuid4(),
                 ]);
+                error_log( 'Inserted period: ' . print_r( $new->toArray(), true ) );
             }
-            
-            error_log( "Darsna: Successfully set schedule for agent_id: {$agent_id}" );
+
+            error_log( "Darsna: Successfully set schedule for agent_id={$agent_id}" );
             return true;
-            
+
         } catch ( Exception $e ) {
-            error_log( "Darsna: Error setting schedule via OsWorkPeriodModel: " . $e->getMessage() );
+            error_log( "Darsna: Model error: " . $e->getMessage() );
             return $this->set_agent_schedule_fallback( $agent_id, $schedule );
         }
     }
