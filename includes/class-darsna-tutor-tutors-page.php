@@ -38,6 +38,25 @@ class Darsna_Tutor_Tutors_Page {
         
         ?>
         <div class="darsna-tutors-page">
+            <div class="tutors-info-banner">
+                <div class="info-content">
+                    <div class="info-item">
+                        <span class="info-icon">⚡</span>
+                        <div class="info-text">
+                            <strong>Urgent Help Available</strong>
+                            <p>Look for the lightning bolt badge - these tutors respond within 6 hours for immediate assistance!</p>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-icon">🔍</span>
+                        <div class="info-text">
+                            <strong>Easy Filtering</strong>
+                            <p>Use the filters below to find tutors by subject, location, price range, and urgent availability.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <?php if ($atts['show_filters'] === 'yes'): ?>
             <div class="tutors-filters">
                 <div class="filters-container">
@@ -78,9 +97,13 @@ class Darsna_Tutor_Tutors_Page {
                     <div class="filter-group">
                         <select id="urgent-help-filter" class="filter-select">
                             <option value="">All Tutors</option>
-                            <option value="yes">Urgent Help Available</option>
+                            <option value="yes">Urgent Help Available ⚡</option>
                             <option value="no">Regular Tutors Only</option>
                         </select>
+                        <div class="filter-tip urgent-help-tip">
+                            <span class="tip-icon">💡</span>
+                            <span class="tip-text">Urgent help tutors respond within 6 hours</span>
+                        </div>
                     </div>
                     
                     <div class="filter-group">
@@ -234,9 +257,15 @@ class Darsna_Tutor_Tutors_Page {
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="avatar-img">
                 <div class="online-status"></div>
                 <?php if (!empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1): ?>
-                    <div class="urgent-help-badge" title="Offers urgent help within 6 hours">
+                    <div class="urgent-help-badge" title="⚡ Urgent Help Available - This tutor responds within 6 hours for immediate assistance">
                         <span class="urgent-icon">⚡</span>
                         <span class="urgent-text">Urgent Help</span>
+                        <div class="urgent-tooltip">
+                            <div class="tooltip-content">
+                                <strong>⚡ Urgent Help Available</strong>
+                                <p>This tutor provides immediate assistance and responds within 6 hours</p>
+                            </div>
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>
