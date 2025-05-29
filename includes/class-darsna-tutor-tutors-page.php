@@ -225,6 +225,12 @@ class Darsna_Tutor_Tutors_Page {
             <div class="tutor-avatar">
                 <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="avatar-img">
                 <div class="online-status"></div>
+                <?php if (!empty($tutor->urgent_rate) && $tutor->urgent_rate > 0): ?>
+                    <div class="urgent-help-badge" title="Offers urgent help within 6 hours">
+                        <span class="urgent-icon">⚡</span>
+                        <span class="urgent-text">Urgent Help</span>
+                    </div>
+                <?php endif; ?>
             </div>
             
             <div class="tutor-info">
