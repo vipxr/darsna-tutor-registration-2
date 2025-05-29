@@ -50,6 +50,9 @@
          */
         initializeFields: function() {
             // Schedule initialization removed - handled by LatePoint
+            
+            // Initialize remove button visibility for service rows
+            TutorRegistration.updateRemoveButtons();
         },
         
         /**
@@ -464,6 +467,7 @@
         // Only initialize on checkout page
         if ($('#tutor-registration-fields').length) {
             TutorRegistration.init();
+            TutorRegistration.initializeFields();
         }
         
         // Initialize multi-service functionality
@@ -498,6 +502,9 @@
         
         // Initial validation
         validateServices();
+        
+        // Initialize remove button visibility
+        TutorRegistration.updateRemoveButtons();
     }
     
     /**

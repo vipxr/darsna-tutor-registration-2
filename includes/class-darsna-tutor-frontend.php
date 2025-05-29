@@ -172,10 +172,8 @@ class Darsna_Tutor_Frontend {
         echo '</select>';
         echo '</div>';
         
-        // Remove button (only show if not the first row)
-        if ( $index > 0 ) {
-            echo '<button type="button" class="remove-service-btn button-link-delete">' . __( 'Remove', 'darsna-tutor' ) . '</button>';
-        }
+        // Remove button (visibility controlled by JavaScript)
+        echo '<button type="button" class="remove-service-btn button-link-delete">' . __( 'Remove', 'darsna-tutor' ) . '</button>';
         
         echo '</div>';
     }

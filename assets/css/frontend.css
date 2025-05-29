@@ -10,11 +10,7 @@
    ========================================================================== */
 
 #tutor-registration-fields {
-    background: #f9f9f9;
-    padding: 20px;
     margin: 20px 0;
-    border-radius: 5px;
-    border: 1px solid #ddd;
 }
 
 #tutor-registration-fields h3 {
@@ -122,7 +118,7 @@
     background: #0073aa;
     color: white;
     border: none;
-    padding: 8px 15px;
+    padding: 4px 10px;
     border-radius: 3px;
     cursor: pointer;
     font-size: 14px;
@@ -162,8 +158,8 @@
 
 #tutor-registration-fields .error {
     color: #e74c3c;
-    background: #fdf2f2;
-    border: 1px solid #f5c6cb;
+    background: #ffffff;
+    border: 1px solid #dedede;
     padding: 10px;
     border-radius: 4px;
     margin: 10px 0;
