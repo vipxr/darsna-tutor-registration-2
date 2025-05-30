@@ -577,8 +577,10 @@ class Darsna_Tutor_Tutors_Page {
                         data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
                     Learn More
                 </button>
-                <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
+                <?php $current_user = wp_get_current_user(); ?>
+                <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
+                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
+                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled' : ''; ?>>
                     Book Now
                 </button>
             </div>
@@ -738,8 +740,10 @@ class Darsna_Tutor_Tutors_Page {
             </div>
             
             <div class="enhanced-popup-actions">
-                <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
+                <?php $current_user = wp_get_current_user(); ?>
+                <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
+                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
+                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled' : ''; ?>>
                     Book a Session
                 </button>
             </div>
