@@ -571,18 +571,22 @@ class Darsna_Tutor_Tutors_Page {
                 <?php endif; ?>
             </div>
             
-            <div class="latepoint-resource-item-actions">
+            <?php 
+            $is_agent = current_user_can('latepoint_agent');
+            $actions_class = $is_agent ? 'latepoint-resource-item-actions single-action' : 'latepoint-resource-item-actions';
+            ?>
+            <div class="<?php echo esc_attr($actions_class); ?>">
                 <button class="latepoint-btn latepoint-btn-primary os-trigger-item-details-popup enhanced-view-details" 
                         data-item-details-popup-id="enhanced-tutor-popup"
                         data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
                     Learn More
                 </button>
-                <?php $current_user = wp_get_current_user(); ?>
-                <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
-                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'onclick="alert(\"Booking is for students only. You are a tutor.\"); return false;" style="cursor: default;"' : ''; ?>>
+                <?php if (!$is_agent): ?>
+                <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now" 
+                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
                     Book Now
                 </button>
+                <?php endif; ?>
             </div>
         </div>
         <?php
@@ -740,10 +744,8 @@ class Darsna_Tutor_Tutors_Page {
             </div>
             
             <div class="enhanced-popup-actions">
-                <?php $current_user = wp_get_current_user(); ?>
-                <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
-                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'onclick="alert(\"Booking is for students only. You are a tutor.\"); return false;" style="cursor: default;"' : ''; ?>>
+                <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor" 
+                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
                     Book a Session
                 </button>
             </div>

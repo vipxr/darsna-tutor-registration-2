@@ -833,6 +833,11 @@
     justify-content: center;
 }
 
+.latepoint-resource-item-actions.single-action {
+    justify-content: center;
+    gap: 0;
+}
+
 .latepoint-btn {
     padding: 10px 16px;
     border: none;
