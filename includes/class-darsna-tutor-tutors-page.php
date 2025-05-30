@@ -580,7 +580,7 @@ class Darsna_Tutor_Tutors_Page {
                 <?php $current_user = wp_get_current_user(); ?>
                 <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
                         data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
-                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled' : ''; ?>>
+                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled title="Booking is for students only. You are a tutor." style="cursor: default;"' : ''; ?>>
                     Book Now
                 </button>
             </div>
@@ -743,7 +743,7 @@ class Darsna_Tutor_Tutors_Page {
                 <?php $current_user = wp_get_current_user(); ?>
                 <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor<?php echo in_array('latepoint_agent', $current_user->roles) ? ' disabled' : ''; ?>" 
                         data-selected-agent="<?php echo esc_attr($tutor->id); ?>"
-                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled' : ''; ?>>
+                        <?php echo in_array('latepoint_agent', $current_user->roles) ? 'disabled title="Booking is for students only. You are a tutor." style="cursor: default;"' : ''; ?>>
                     Book a Session
                 </button>
             </div>
