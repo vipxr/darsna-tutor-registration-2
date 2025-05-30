@@ -838,6 +838,10 @@
     gap: 0;
 }
 
+.enhanced-popup-actions.hidden-for-agent {
+    display: none;
+}
+
 .latepoint-btn {
     padding: 10px 16px;
     border: none;

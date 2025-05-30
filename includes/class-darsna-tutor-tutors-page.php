@@ -743,12 +743,18 @@ class Darsna_Tutor_Tutors_Page {
                 <?php endif; ?>
             </div>
             
-            <div class="enhanced-popup-actions">
+            <?php 
+            $is_agent = current_user_can('latepoint_agent');
+            $popup_actions_class = $is_agent ? 'enhanced-popup-actions hidden-for-agent' : 'enhanced-popup-actions';
+            ?>
+            <?php if (!$is_agent): ?>
+            <div class="<?php echo esc_attr($popup_actions_class); ?>">
                 <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor" 
                         data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
                     Book a Session
                 </button>
             </div>
+            <?php endif; ?>
         </div>
         <?php
         return ob_get_clean();
