@@ -1,0 +1,164 @@
+/* Darsna WooCommerce Registration Styles */
+
+/* Standard fields styling - minimal since using WooCommerce built-in fields */
+.darsna-standard-fields {
+    margin-bottom: 20px;
+}
+
+.darsna-standard-fields h3 {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 1.2em;
+}
+
+/* User type field styling */
+#user_type {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+/* Tutor fields container */
+#tutor-fields {
+    border-radius: 5px;
+    margin-top: 20px;
+}
+
+/* Tutor fields visibility control */
+#tutor-fields.hidden {
+    display: none;
+}
+
+#tutor-fields.visible {
+    display: block;
+}
+
+/* Individual field visibility control */
+.darsna-field-hidden {
+    display: none !important;
+}
+
+.darsna-field-visible {
+    display: block !important;
+}
+#tutor_hourly_rate-description {
+    background: unset!important;
+    color: rgb(51, 51, 51);
+    padding: 0px;
+}
+
+#tutor-fields h3 {
+    margin-top: 0;
+}
+
+/* Custom styling for tutor fields using WooCommerce form fields */
+#tutor_subjects_field select {
+    height: 120px;
+}
+
+#tutor_bio_field textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+#tutor_hourly_rate_field input {
+    width: 150px;
+}
+
+/* Error styling */
+.error {
+    border-color: #dc3232 !important;
+}
+
+.rate-error {
+    display: block;
+    margin-top: 5px;
+    font-size: 0.9em;
+}
+
+/* Terms and conditions styling */
+.woocommerce-form__label-for-checkbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.woocommerce-form__label-for-checkbox-text {
+    line-height: 1.4;
+}
+
+.woocommerce-form__label-for-checkbox-text a {
+    color: #0d202f;
+    text-decoration: underline;
+}
+
+.woocommerce-form__label-for-checkbox-text a:hover {
+    text-decoration: none;
+}
+
+/* Select2 styling for enhanced multiselect */
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--default .select2-selection--multiple {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 40px;
+    padding: 4px;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #0d202f;
+    border: 1px solid #0d202f;
+    color: white;
+    border-radius: 3px;
+    padding: 2px 8px;
+    margin: 2px;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: white;
+    margin-right: 5px;
+}
+
+.select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #ccc;
+}
+
+.select2-dropdown {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.select2-container--default .select2-search--dropdown .select2-search__field {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #0d202f;
+}
+
+/* Error styling for Select2 */
+.error .select2-container--default .select2-selection--multiple {
+    border-color: #dc3232 !important;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    #tutor-fields {
+        padding: 15px;
+    }
+    
+    #tutor_hourly_rate_field input {
+        width: 100%;
+    }
+    
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        font-size: 12px;
+        padding: 1px 6px;
+    }
+}

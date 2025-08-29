@@ -1,765 +1,676 @@
 <?php
 
-class Darsna_Tutor_Tutors_Page {
-    
-    public function __construct() {
-        add_shortcode('darsna_tutors', array($this, 'render_enhanced_tutors'));
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-        add_action('wp_ajax_filter_tutors', array($this, 'ajax_filter_tutors'));
-        add_action('wp_ajax_nopriv_filter_tutors', array($this, 'ajax_filter_tutors'));
-        add_action('wp_ajax_get_tutor_details', array($this, 'ajax_get_tutor_details'));
-        add_action('wp_ajax_nopriv_get_tutor_details', array($this, 'ajax_get_tutor_details'));
-    }
-    
-    public function enqueue_scripts() {
-        wp_enqueue_script('jquery');
-        wp_enqueue_script('darsna-tutors-page', plugin_dir_url(__FILE__) . '../assets/js/tutors-page.js', array('jquery'), '1.0.0', true);
-        wp_localize_script('darsna-tutors-page', 'darsna_ajax', array(
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('darsna_tutors_nonce')
-        ));
-        
-        wp_enqueue_style('darsna-tutors-page', plugin_dir_url(__FILE__) . '../assets/css/tutors-page.css', array(), '1.0.0');
-    }
-    
-    // Removed outdated render_tutors_page method - only using enhanced version now
-    
-    private function get_all_tutors() {
-        global $wpdb;
-        
-        $query = "
-            SELECT DISTINCT
-                a.id,
-                a.first_name,
-                a.last_name,
-                a.email,
-                a.phone,
-                a.bio,
-                a.features,
-                a.wp_user_id,
-                GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as services,
-                GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices,
-                MIN(COALESCE(cp.charge_amount, s.charge_amount)) as min_price,
-                MAX(COALESCE(cp.charge_amount, s.charge_amount)) as max_price,
-                am.meta_value as urgent_help_enabled
-            FROM {$wpdb->prefix}latepoint_agents a
-            LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
-            LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
-            LEFT JOIN {$wpdb->prefix}latepoint_custom_prices cp ON (
-                cp.agent_id = a.id AND 
-                cp.service_id = s.id
-            )
-            LEFT JOIN {$wpdb->prefix}latepoint_agent_meta am ON (
-                am.object_id = a.id AND 
-                am.meta_key = 'urgent_help_enabled'
-            )
-            WHERE a.status = 'active'
-            GROUP BY a.id
-            ORDER BY a.first_name, a.last_name
-        ";
-        
-        $results = $wpdb->get_results($query);
-        
-        // Process tutor data and get additional info from user meta
-        foreach ($results as &$tutor) {
-            // Get additional data from WordPress user meta if wp_user_id exists
-            if (isset($tutor->wp_user_id)) {
-                $code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
-                $tutor->country = WC()->countries->countries[ $code ] ?? '';
-                $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
-                $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
-                $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
-            } else {
-                $tutor->country = '';
-                $tutor->experience = '';
-                $tutor->education = '';
-                $tutor->languages = '';
-            }
-        }
-        
-        return $results;
-    }
-    
-    private function get_unique_countries($tutors) {
-        $countries = array();
-        foreach ($tutors as $tutor) {
-            if (!empty($tutor->country) && !in_array($tutor->country, $countries)) {
-                $countries[] = $tutor->country;
-            }
-        }
-        sort($countries);
-        return $countries;
-    }
-    
-    private function get_unique_subjects($tutors) {
-        $subjects = array();
-        foreach ($tutors as $tutor) {
-            if (!empty($tutor->services)) {
-                $tutor_services = explode(', ', $tutor->services);
-                foreach ($tutor_services as $service) {
-                    $service = trim($service);
-                    if (!empty($service) && !in_array($service, $subjects)) {
-                        $subjects[] = $service;
-                    }
-                }
-            }
-        }
-        sort($subjects);
-        return $subjects;
-    }
-    
-    private function render_tutors_grid($tutors) {
-        if (empty($tutors)) {
-            return '<div class="no-tutors"><p>No tutors available at the moment.</p></div>';
-        }
-        
-        $output = '';
-        foreach ($tutors as $tutor) {
-            $output .= $this->render_tutor_card($tutor);
-        }
-        
-        return $output;
-    }
-    
-    private function render_tutor_card($tutor) {
-        $avatar_url = $this->get_avatar_url($tutor->id);
-        $full_name = trim($tutor->first_name . ' ' . $tutor->last_name);
-        $price_range = $this->format_price_range($tutor->min_price, $tutor->max_price);
-        
-        ob_start();
-        ?> 
-        <div class="tutor-card" 
-             data-country="<?php echo esc_attr($tutor->country); ?>"
-             data-services="<?php echo esc_attr(strtolower($tutor->services)); ?>"
-             data-min-price="<?php echo esc_attr($tutor->min_price); ?>"
-             data-max-price="<?php echo esc_attr($tutor->max_price); ?>"
-             data-name="<?php echo esc_attr(strtolower($full_name)); ?>"
-             data-urgent-help="<?php echo !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1 ? 'yes' : 'no'; ?>">
-            
-            <div class="tutor-avatar">
-                <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="avatar-img">
-                <div class="online-status"></div>
-                <?php if (!empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1): ?>
-                    <div class="urgent-help-badge" title="⚡ Urgent Help Available - This tutor responds within 6 hours for immediate assistance">
-                        <span class="urgent-icon">⚡</span>
-                        <span class="urgent-text">Urgent Help</span>
-                        <div class="urgent-tooltip">
-                            <div class="tooltip-content">
-                                <strong>⚡ Urgent Help Available</strong>
-                                <p>This tutor provides immediate assistance and responds within 6 hours</p>
-                            </div>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-            
-            <div class="tutor-info">
-                <h3 class="tutor-name"><?php echo esc_html($full_name); ?></h3>
-                
-                <?php if (!empty($tutor->country)): ?>
-                    <div class="tutor-location">
-                        <?php echo esc_html($tutor->country); ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->bio)): ?>
-                    <p class="tutor-bio"><?php echo esc_html(wp_trim_words($tutor->bio, 20)); ?></p>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->services)): ?>
-                    <div class="tutor-subjects">
-                        <span class="subjects-label">Subjects:</span>
-                        <div class="subjects-tags">
-                            <?php 
-                            $services = explode(', ', $tutor->services);
-                            foreach (array_slice($services, 0, 3) as $service): 
-                            ?>
-                                <span class="subject-tag"><?php echo esc_html($service); ?></span>
-                            <?php endforeach; ?>
-                            <?php if (count($services) > 3): ?>
-                                <span class="more-subjects">+<?php echo count($services) - 3; ?> more</span>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->experience)): ?>
-                    <div class="tutor-experience">
-                        <span class="experience-icon">🎓</span>
-                        <?php echo esc_html($tutor->experience); ?> years experience
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->languages)): ?>
-                    <div class="tutor-languages">
-                        <span class="languages-icon">🗣️</span>
-                        <?php echo esc_html($tutor->languages); ?>
-                    </div>
-                <?php endif; ?>
-                
-                <div class="tutor-pricing">
-                    <span class="price-label">Starting from:</span>
-                    <span class="price-amount"><?php echo $price_range; ?></span>
-                </div>
-                
-                <div class="tutor-actions">
-                    <button class="btn btn-secondary view-profile" data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
-                        View Profile
-                    </button>
-                </div>
-            </div>
-        </div>
-        <?php
-        return ob_get_clean();
-    }
-    
-    private function get_avatar_url($tutor_id) {
-        global $wpdb;
-        
-        // Get agent data from LatePoint agents table
-        $agent_data = $wpdb->get_row($wpdb->prepare(
-            "SELECT avatar_image_id, wp_user_id FROM {$wpdb->prefix}latepoint_agents WHERE id = %d",
-            $tutor_id
-        ));
-        
-        if ($agent_data && !empty($agent_data->avatar_image_id)) {
-            // Get the image metadata from wp_postmeta
-            $image_meta = $wpdb->get_var($wpdb->prepare(
-                "SELECT meta_value FROM {$wpdb->prefix}postmeta WHERE post_id = %d AND meta_key = '_wp_attachment_metadata'",
-                $agent_data->avatar_image_id
-            ));
-            
-            if ($image_meta) {
-                $meta_data = maybe_unserialize($image_meta);
-                
-                if (is_array($meta_data) && isset($meta_data['file'])) {
-                    // Get the upload directory info
-                    $upload_dir = wp_upload_dir();
-                    
-                    // Check if thumbnail size exists, otherwise use original
-                    if (isset($meta_data['sizes']['thumbnail']['file'])) {
-                        $file_path = dirname($meta_data['file']) . '/' . $meta_data['sizes']['thumbnail']['file'];
-                    } else {
-                        $file_path = $meta_data['file'];
-                    }
-                    
-                    // Construct the full URL
-                    $avatar_url = $upload_dir['baseurl'] . '/' . $file_path;
-                    
-                    // Verify the file exists
-                    $file_full_path = $upload_dir['basedir'] . '/' . $file_path;
-                    if (file_exists($file_full_path)) {
-                        return $avatar_url;
-                    }
-                }
-            }
-        }
-        
-        // Fallback to gravatar if wp_user_id exists
-        if ($agent_data && !empty($agent_data->wp_user_id)) {
-            $user_info = get_userdata($agent_data->wp_user_id);
-            if ($user_info) {
-                return get_avatar_url($user_info->user_email, array(
-                    'size' => 120,
-                    'default' => 'identicon'
-                ));
-            }
-        }
-        
-        // Final fallback to default gravatar
-        return get_avatar_url('default@example.com', array(
-            'size' => 120,
-            'default' => 'identicon'
-        ));
-    }
-    
-    private function format_price_range($min_price, $max_price) {
-        if (empty($min_price) && empty($max_price)) {
-            return 'Contact for pricing';
-        }
-        
-        $min_price = floatval($min_price);
-        $max_price = floatval($max_price);
-        
-        if ($min_price == $max_price) {
-            return '$' . number_format($min_price, 0) . '/hr';
-        }
-        
-        return '$' . number_format($min_price, 0) . ' - $' . number_format($max_price, 0) . '/hr';
-    }
-    
-    public function ajax_filter_tutors() {
-        check_ajax_referer('darsna_tutors_nonce', 'nonce');
-        
-        $search = sanitize_text_field($_POST['search'] ?? '');
-        $country = sanitize_text_field($_POST['country'] ?? '');
-        $subject = sanitize_text_field($_POST['subject'] ?? '');
-        $price_range = sanitize_text_field($_POST['price_range'] ?? '');
-        $urgent_help = sanitize_text_field($_POST['urgent_help'] ?? '');
-        $sort = sanitize_text_field($_POST['sort'] ?? 'name');
-        
-        $tutors = $this->get_filtered_tutors($search, $country, $subject, $price_range, $urgent_help, $sort);
-        
-        wp_send_json_success(array(
-            'html' => $this->render_tutors_grid($tutors),
-            'count' => count($tutors)
-        ));
-    }
-    
-    private function get_filtered_tutors($search, $country, $subject, $price_range, $urgent_help, $sort) {
-        $tutors = $this->get_all_tutors();
-        
-        // Apply filters
-        $filtered_tutors = array_filter($tutors, function($tutor) use ($search, $country, $subject, $price_range, $urgent_help) {
-            // Search filter
-            if (!empty($search)) {
-                $search_text = strtolower($search);
-                $tutor_text = strtolower($tutor->first_name . ' ' . $tutor->last_name . ' ' . $tutor->services . ' ' . $tutor->bio);
-                if (strpos($tutor_text, $search_text) === false) {
-                    return false;
-                }
-            }
-            
-            // Country filter
-            if (!empty($country) && $tutor->country !== $country) {
-                return false;
-            }
-            
-            // Subject filter
-            if (!empty($subject)) {
-                $tutor_services = strtolower($tutor->services);
-                if (strpos($tutor_services, strtolower($subject)) === false) {
-                    return false;
-                }
-            }
-            
-            // Price filter
-            if (!empty($price_range)) {
-                $min_price = floatval($tutor->min_price);
-                switch ($price_range) {
-                    case '0-20':
-                        if ($min_price > 20) return false;
-                        break;
-                    case '20-40':
-                        if ($min_price < 20 || $min_price > 40) return false;
-                        break;
-                    case '40-60':
-                        if ($min_price < 40 || $min_price > 60) return false;
-                        break;
-                    case '60-100':
-                        if ($min_price < 60 || $min_price > 100) return false;
-                        break;
-                    case '100+':
-                        if ($min_price < 100) return false;
-                        break;
-                }
-            }
-            
-            // Urgent help filter
-            if (!empty($urgent_help)) {
-                $has_urgent_help = !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1;
-                if ($urgent_help === 'yes' && !$has_urgent_help) {
-                    return false;
-                }
-                if ($urgent_help === 'no' && $has_urgent_help) {
-                    return false;
-                }
-            }
-            
-            return true;
-        });
-        
-        // Apply sorting
-        usort($filtered_tutors, function($a, $b) use ($sort) {
-            switch ($sort) {
-                case 'price-low':
-                    return floatval($a->min_price) - floatval($b->min_price);
-                case 'price-high':
-                    return floatval($b->min_price) - floatval($a->min_price);
-                case 'rating':
-                    // Placeholder for rating sorting
-                    return 0;
-                case 'name':
-                default:
-                    return strcmp($a->first_name . ' ' . $a->last_name, $b->first_name . ' ' . $b->last_name);
-            }
-        });
-        
-        return $filtered_tutors;
-    }
-    
-    /**
-     * Enhanced tutors shortcode that mimics LatePoint's latepoint_resources
-     * but with additional search, filtering, and enhanced popup functionality
-     */
-    public function render_enhanced_tutors($atts) {
-        $atts = shortcode_atts(array(
-            'columns' => '3',
-            'show_search' => 'yes',
-            'show_filters' => 'yes',
-            'items_per_page' => '12',
-            'show_bio' => 'yes',
-            'show_pricing' => 'yes'
-        ), $atts);
-        
-        // Get all tutors
-        $tutors = $this->get_all_tutors();
-        $countries = $this->get_unique_countries($tutors);
-        $subjects = $this->get_unique_subjects($tutors);
-        
-        ob_start();
-        ?>
-        <div class="darsna-enhanced-tutors latepoint-resources-w" data-columns="<?php echo esc_attr($atts['columns']); ?>">
-            <?php if ($atts['show_search'] === 'yes' || $atts['show_filters'] === 'yes'): ?>
-            <div class="tutors-enhanced-filters">
-                <?php if ($atts['show_search'] === 'yes'): ?>
-                <div class="enhanced-search-container">
-                    <input type="text" id="enhanced-tutor-search" placeholder="Search tutors by name, subject, or expertise..." class="enhanced-search-input" style="padding: 10px;">
-                </div>
-                <?php endif; ?>
-                
-                <?php if ($atts['show_filters'] === 'yes'): ?>
-                <div class="enhanced-filters-row">
-                    <select id="enhanced-subject-filter" class="enhanced-filter-select">
-                        <option value="">All Subjects</option>
-                        <?php foreach ($subjects as $subject): ?>
-                            <option value="<?php echo esc_attr($subject); ?>"><?php echo esc_html($subject); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    
-                    <select id="enhanced-country-filter" class="enhanced-filter-select">
-                        <option value="">All Countries</option>
-                        <?php foreach ($countries as $country): ?>
-                            <option value="<?php echo esc_attr($country); ?>"><?php echo esc_html($country); ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    
-                    <select id="enhanced-price-filter" class="enhanced-filter-select">
-                        <option value="">All Prices</option>
-                        <option value="0-20">$0 - $20/hr</option>
-                        <option value="20-40">$20 - $40/hr</option>
-                        <option value="40-60">$40 - $60/hr</option>
-                        <option value="60-100">$60 - $100/hr</option>
-                        <option value="100+">$100+/hr</option>
-                    </select>
-                    
-                    <select id="enhanced-sort-filter" class="enhanced-filter-select">
-                        <option value="name">Sort by Name</option>
-                        <option value="price-low">Price: Low to High</option>
-                        <option value="price-high">Price: High to Low</option>
-                    </select>
-                    
-                    <select id="enhanced-urgent-help-filter" class="enhanced-filter-select">
-                        <option value="">All Tutors</option>
-                        <option value="yes">⚡ Urgent Help Only</option>
-                    </select>
-                    
-                    <button id="enhanced-clear-filters" class="enhanced-clear-btn">Clear</button>
-                </div>
-                <?php endif; ?>
-            </div>
-            <?php endif; ?>
-            
-            <div class="latepoint-resources enhanced-tutors-grid" id="enhanced-tutors-grid">
-                <?php echo $this->render_enhanced_tutors_grid($tutors, $atts); ?>
-            </div>
-            
-            <div class="enhanced-loading-spinner" id="enhanced-loading-spinner" style="display: none;">
-                <div class="spinner"></div>
-                <p>Loading tutors...</p>
-            </div>
-            
-            <div class="enhanced-no-results" id="enhanced-no-results" style="display: none;">
-                <div class="enhanced-no-results-content">
-                    <h3>No tutors found</h3>
-                    <p>Try adjusting your search or filter criteria.</p>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Enhanced Tutor Details Popup -->
-        <div class="os-item-details-popup enhanced-tutor-popup" id="enhanced-tutor-popup" style="display: none;">
-            <div class="os-item-details-popup-content">
-                <div class="os-item-details-popup-close enhanced-popup-close">×</div>
-                <div class="enhanced-popup-body" id="enhanced-popup-body">
-                    <!-- Content will be loaded via AJAX -->
-                </div>
-            </div>
-        </div>
-        <?php
-        
-        return ob_get_clean();
-    }
-    
-    private function render_enhanced_tutors_grid($tutors, $atts) {
-        if (empty($tutors)) {
-            return '<div class="enhanced-no-tutors"><p>No tutors available at the moment.</p></div>';
-        }
-        
-        $output = '';
-        foreach ($tutors as $tutor) {
-            $output .= $this->render_enhanced_tutor_card($tutor, $atts);
-        }
-        
-        return $output;
-    }
-    
-    private function render_enhanced_tutor_card($tutor, $atts) {
-        $avatar_url = $this->get_avatar_url($tutor->id);
-        $full_name = trim($tutor->first_name . ' ' . $tutor->last_name);
-        $price_range = $this->format_price_range($tutor->min_price, $tutor->max_price);
-        
-        ob_start();
-        ?>
-        <div class="latepoint-resource-item enhanced-tutor-item" 
-             data-country="<?php echo esc_attr($tutor->country); ?>"
-             data-services="<?php echo esc_attr(strtolower($tutor->services)); ?>"
-             data-min-price="<?php echo esc_attr($tutor->min_price); ?>"
-             data-max-price="<?php echo esc_attr($tutor->max_price); ?>"
-             data-name="<?php echo esc_attr(strtolower($full_name)); ?>"
-             data-tutor-id="<?php echo esc_attr($tutor->id); ?>"
-             data-urgent-help="<?php echo !empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1 ? 'yes' : 'no'; ?>">
-            
-            <div class="latepoint-resource-item-avatar">
-                <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>" class="latepoint-resource-avatar">
-                <?php if (!empty($tutor->urgent_help_enabled) && $tutor->urgent_help_enabled == 1): ?>
-                    <div class="urgent-help-badge" title="⚡ Urgent Help Available - This tutor responds within 6 hours for immediate assistance">
-                        <span class="urgent-icon">⚡</span>
-                        <span class="urgent-text">Urgent Help</span>
-                        <div class="urgent-tooltip">
-                            <strong>⚡ Urgent Help Available</strong>
-                            <p>This tutor provides quick responses within 6 hours for immediate assistance with your learning needs.</p>
-                        </div>
-                    </div>
-                <?php endif; ?>
-            </div>
-            
-            <div class="latepoint-resource-item-info">
-                <div class="latepoint-resource-item-name"><?php echo esc_html($full_name); ?></div>
-                
-                <?php if (!empty($tutor->services) && $atts['show_bio'] === 'yes'): ?>
-                    <div class="enhanced-tutor-subjects">
-                        <?php 
-                        $services = explode(', ', $tutor->services);
-                        foreach (array_slice($services, 0, 2) as $service): 
-                        ?>
-                            <span class="enhanced-subject-badge"><?php echo esc_html($service); ?></span>
-                        <?php endforeach; ?>
-                        <?php if (count($services) > 2): ?>
-                            <span class="enhanced-more-subjects">+<?php echo count($services) - 2; ?></span>
-                        <?php endif; ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->bio) && $atts['show_bio'] === 'yes'): ?>
-                    <div class="latepoint-resource-item-description">
-                        <?php echo esc_html(wp_trim_words($tutor->bio, 15)); ?>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if ($atts['show_pricing'] === 'yes'): ?>
-                    <div class="enhanced-pricing-info">
-                        <span class="enhanced-price"><?php echo $price_range; ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->experience)): ?>
-                    <div class="enhanced-experience">
-                        <span class="enhanced-exp-icon">🎓</span>
-                        <?php echo esc_html($tutor->experience); ?> years
-                    </div>
-                <?php endif; ?>
-            </div>
-            
-            <?php 
-            $is_agent = current_user_can('latepoint_agent');
-            $actions_class = $is_agent ? 'latepoint-resource-item-actions single-action' : 'latepoint-resource-item-actions';
-            ?>
-            <div class="<?php echo esc_attr($actions_class); ?>">
-                <button class="latepoint-btn latepoint-btn-primary os-trigger-item-details-popup enhanced-view-details" 
-                        data-item-details-popup-id="enhanced-tutor-popup"
-                        data-tutor-id="<?php echo esc_attr($tutor->id); ?>">
-                    Learn More
-                </button>
-                <?php if (!$is_agent): ?>
-                <button class="latepoint-btn latepoint-btn-secondary enhanced-book-now" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
-                    Book Now
-                </button>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php
-        return ob_get_clean();
-    }
-    
-    public function ajax_get_tutor_details() {
-        check_ajax_referer('darsna_tutors_nonce', 'nonce');
-        
-        $tutor_id = intval($_POST['tutor_id'] ?? 0);
-        if (!$tutor_id) {
-            wp_send_json_error('Invalid tutor ID');
-        }
-        
-        $tutor = $this->get_tutor_details($tutor_id);
-        if (!$tutor) {
-            wp_send_json_error('Tutor not found');
-        }
-        
-        wp_send_json_success(array(
-            'html' => $this->render_enhanced_tutor_popup($tutor)
-        ));
-    }
-    
-    private function get_tutor_details($tutor_id) {
-        global $wpdb;
-        
-        $query = $wpdb->prepare("
-            SELECT DISTINCT
-                a.id,
-                a.first_name,
-                a.last_name,
-                a.email,
-                a.phone,
-                a.bio,
-                a.features,
-                a.wp_user_id,
-                GROUP_CONCAT(DISTINCT s.name SEPARATOR ', ') as services,
-                GROUP_CONCAT(DISTINCT s.id SEPARATOR ', ') as service_ids,
-                GROUP_CONCAT(DISTINCT COALESCE(cp.charge_amount, s.charge_amount) SEPARATOR ', ') as prices
-            FROM {$wpdb->prefix}latepoint_agents a
-            LEFT JOIN {$wpdb->prefix}latepoint_agents_services ags ON a.id = ags.agent_id
-            LEFT JOIN {$wpdb->prefix}latepoint_services s ON ags.service_id = s.id
-            LEFT JOIN {$wpdb->prefix}latepoint_custom_prices cp ON (
-                cp.agent_id = a.id AND 
-                cp.service_id = s.id
-            )
-            WHERE a.id = %d AND a.status = 'active'
-            GROUP BY a.id
-        ", $tutor_id);
-        
-        $tutor = $wpdb->get_row($query);
-        
-        if ($tutor && isset($tutor->wp_user_id)) {
-            $code = get_user_meta( $tutor->wp_user_id, 'billing_country', true );
-            $tutor->country = WC()->countries->countries[ $code ] ?? '';            
-            $tutor->experience = get_user_meta($tutor->wp_user_id, 'tutor_experience', true) ?: '';
-            $tutor->education = get_user_meta($tutor->wp_user_id, 'tutor_education', true) ?: '';
-            $tutor->languages = get_user_meta($tutor->wp_user_id, 'tutor_languages', true) ?: '';
-            $tutor->qualifications = get_user_meta($tutor->wp_user_id, 'tutor_qualifications', true) ?: '';
-            $tutor->teaching_style = get_user_meta($tutor->wp_user_id, 'tutor_teaching_style', true) ?: '';
-        }
-        
-        return $tutor;
-    }
-    
-    private function render_enhanced_tutor_popup($tutor) {
-        $avatar_url = $this->get_avatar_url($tutor->id);
-        $full_name = trim($tutor->first_name . ' ' . $tutor->last_name);
-        
-        // Parse services and prices
-        $services = !empty($tutor->services) ? explode(', ', $tutor->services) : array();
-        $service_ids = !empty($tutor->service_ids) ? explode(', ', $tutor->service_ids) : array();
-        $prices = !empty($tutor->prices) ? explode(', ', $tutor->prices) : array();
-        
-        ob_start();
-        ?>
-        <div class="enhanced-popup-header">
-            <div class="enhanced-popup-avatar">
-                <img src="<?php echo esc_url($avatar_url); ?>" alt="<?php echo esc_attr($full_name); ?>">
-            </div>
-            <div class="enhanced-popup-title">
-                <h2><?php echo esc_html($full_name); ?></h2>
-                <?php if (!empty($tutor->country)): ?>
-                    <div class="enhanced-popup-location">
-                        <?php echo esc_html($tutor->country); ?>
-                    </div>
-                <?php endif; ?>
-            </div>
-        </div>
-        
-        <div class="enhanced-popup-content">
-            <?php if (!empty($tutor->bio)): ?>
-                <div class="enhanced-popup-section">
-                    <h3>About</h3>
-                    <p><?php echo esc_html($tutor->bio); ?></p>
-                </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($services)): ?>
-                <div class="enhanced-popup-section">
-                    <h3>Subjects & Pricing</h3>
-                    <div class="enhanced-services-list">
-                        <?php for ($i = 0; $i < count($services); $i++): ?>
-                            <div class="enhanced-service-item">
-                                <span class="service-name"><?php echo esc_html($services[$i]); ?></span>
-                                <span class="service-price">
-                                    <?php if (isset($prices[$i]) && !empty($prices[$i])): ?>
-                                        $<?php echo esc_html(number_format(floatval($prices[$i]), 0)); ?>/hr
-                                    <?php else: ?>
-                                        Contact for pricing
-                                    <?php endif; ?>
-                                </span>
-                            </div>
-                        <?php endfor; ?>
-                    </div>
-                </div>
-            <?php endif; ?>
-            
-            <div class="enhanced-popup-details">
-                <?php if (!empty($tutor->experience)): ?>
-                    <div class="enhanced-detail-item">
-                        <span class="detail-label">Experience:</span>
-                        <span class="detail-value"><?php echo esc_html($tutor->experience); ?> years</span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->education)): ?>
-                    <div class="enhanced-detail-item">
-                        <span class="detail-label">Education:</span>
-                        <span class="detail-value"><?php echo esc_html($tutor->education); ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->languages)): ?>
-                    <div class="enhanced-detail-item">
-                        <span class="detail-label">Languages:</span>
-                        <span class="detail-value"><?php echo esc_html($tutor->languages); ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->qualifications)): ?>
-                    <div class="enhanced-detail-item">
-                        <span class="detail-label">Qualifications:</span>
-                        <span class="detail-value"><?php echo esc_html($tutor->qualifications); ?></span>
-                    </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($tutor->teaching_style)): ?>
-                    <div class="enhanced-detail-item">
-                        <span class="detail-label">Teaching Style:</span>
-                        <span class="detail-value"><?php echo esc_html($tutor->teaching_style); ?></span>
-                    </div>
-                <?php endif; ?>
-            </div>
-            
-            <?php 
-            $is_agent = current_user_can('latepoint_agent');
-            $popup_actions_class = $is_agent ? 'enhanced-popup-actions hidden-for-agent' : 'enhanced-popup-actions';
-            ?>
-            <?php if (!$is_agent): ?>
-            <div class="<?php echo esc_attr($popup_actions_class); ?>">
-                <button class="latepoint-btn latepoint-btn-primary enhanced-book-tutor" 
-                        data-selected-agent="<?php echo esc_attr($tutor->id); ?>">
-                    Book a Session
-                </button>
-            </div>
-            <?php endif; ?>
-        </div>
-        <?php
-        return ob_get_clean();
-    }
-}
+if ( ! defined( 'ABSPATH' ) ) exit;
 
-// Initialize the class
-new Darsna_Tutor_Tutors_Page();
+class Darsna_Tutor_Tutors_Page {
+  
+  public function __construct() {
+    // Register shortcode
+    add_shortcode( 'darsna_tutors', [ $this, 'render_tutors_page' ] );
+    
+    // Enqueue scripts and styles
+    add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+    
+    // AJAX handlers
+    add_action( 'wp_ajax_darsna_load_more_tutors', [ $this, 'ajax_load_more_tutors' ] );
+    add_action( 'wp_ajax_nopriv_darsna_load_more_tutors', [ $this, 'ajax_load_more_tutors' ] );
+  }
+
+  public function enqueue_scripts() {
+    if ( ! wp_script_is( 'jquery', 'enqueued' ) ) {
+      wp_enqueue_script( 'jquery' );
+    }
+
+    wp_enqueue_style(
+      'darsna-tutors-page-style',
+      plugin_dir_url( __FILE__ ) . '../assets/css/tutors-page.css',
+      [],
+      '1.0.0'
+    );
+
+    wp_enqueue_script(
+      'darsna-tutors-page-script',
+      plugin_dir_url( __FILE__ ) . '../assets/js/tutors-page.js',
+      [ 'jquery' ],
+      '1.0.0',
+      true
+    );
+
+    if ( class_exists( 'OsAssetsHelper' ) ) {
+      if ( method_exists( 'OsAssetsHelper', 'load_latepoint_lightbox_assets' ) ) {
+        OsAssetsHelper::load_latepoint_lightbox_assets();
+      }
+      if ( method_exists( 'OsAssetsHelper', 'load_latepoint_css_bundle' ) ) {
+        OsAssetsHelper::load_latepoint_css_bundle();
+      }
+      if ( method_exists( 'OsAssetsHelper', 'load_latepoint_js_bundle' ) ) {
+        OsAssetsHelper::load_latepoint_js_bundle();
+      }
+    }
+
+    wp_localize_script( 'darsna-tutors-page-script', 'darsna_tutors_ajax', [
+      'ajax_url' => admin_url( 'admin-ajax.php' ),
+      'nonce'    => wp_create_nonce( 'darsna_tutors_nonce' ),
+    ] );
+  }
+
+  public function render_tutors_page( $attributes = [] ) {
+    $processed_attributes = $this->process_shortcode_attributes( $attributes );
+    $tutors_result = $this->get_active_tutors( 1, $processed_attributes['per_page'] );
+    $all_subjects = $this->get_unique_subjects( $tutors_result['tutors'] );
+    $all_countries = $this->get_unique_countries( $tutors_result['tutors'] );
+    ob_start();
+    ?>
+    <div class="darsna-tutors-page fiverr-layout" data-per-page="<?php echo esc_attr( $processed_attributes['per_page'] ); ?>">
+      <!-- Mobile Filter Toggle -->
+      <div class="mobile-filter-toggle">
+        <button id="mobile-filter-btn" class="mobile-filter-btn">
+          <span class="filter-icon">⚙</span>
+          <span class="filter-text">Filters</span>
+          <span class="results-count"><?php echo count($tutors_result['tutors']); ?> results</span>
+        </button>
+      </div>
+
+      <div class="tutors-layout-container">
+        <!-- Left Sidebar with Filters -->
+        <?php if ( $processed_attributes['show_filters'] ) : ?>
+          <aside class="tutors-sidebar" id="tutors-sidebar">
+            <div class="sidebar-header">
+              <h3 class="sidebar-title">Find Tutors</h3>
+              <button class="sidebar-close" id="sidebar-close">×</button>
+            </div>
+            <div class="sidebar-content">
+              <?php echo $this->render_sidebar_filters( $all_subjects, $all_countries ); ?>
+            </div>
+          </aside>
+        <?php endif; ?>
+        
+        <!-- Main Content Area -->
+        <main class="tutors-main-content">
+          <!-- Results Header -->
+          <div class="results-header">
+            <div class="results-info">
+              <h2 class="results-title">Find Your Perfect Tutor</h2>
+              <p class="results-count-text">
+                <span id="results-count"><?php echo count($tutors_result['tutors']); ?></span> qualified tutors available
+              </p>
+            </div>
+            <div class="results-sort">
+              <?php echo $this->render_sort_dropdown(); ?>
+            </div>
+          </div>
+
+          <!-- Tutors Grid -->
+          <div class="darsna-tutors-container">
+            <?php echo $this->render_tutors_grid( $tutors_result['tutors'] ); ?>
+            
+            <div id="no-results" class="darsna-no-results hidden">
+              <div class="no-results-content">
+                <div class="no-results-icon">🔍</div>
+                <h3>No tutors found</h3>
+                <p><?php esc_html_e( 'Try adjusting your filters or search terms.', 'darsna-tutor-registration' ); ?></p>
+                <button class="clear-all-filters">Clear All Filters</button>
+              </div>
+            </div>
+            
+            <?php if ( $tutors_result['has_more'] ) : ?>
+              <div class="darsna-load-more-container">
+                <button id="darsna-load-more-btn" class="darsna-load-more-btn" data-page="2">
+                  <span class="load-more-text"><?php esc_html_e( 'Load More Tutors', 'darsna-tutor-registration' ); ?></span>
+                  <span class="load-more-icon">↓</span>
+                </button>
+              </div>
+            <?php endif; ?>
+          </div>
+        </main>
+      </div>
+    </div>
+    
+    <script type="text/javascript">
+    var darsna_tutors = {
+        ajax_url: '<?php echo admin_url( 'admin-ajax.php' ); ?>',
+        nonce: '<?php echo wp_create_nonce( 'darsna_tutors_nonce' ); ?>',
+        per_page: <?php echo intval( $processed_attributes['per_page'] ); ?>
+    };
+    </script>
+    <?php
+    return ob_get_clean();
+  }
+
+  private function process_shortcode_attributes( array $attributes ): array {
+    return shortcode_atts( [
+      'per_page'     => 50,
+      'show_filters' => true,
+    ], $attributes, 'darsna_tutors' );
+  }
+
+  private function render_filter_section( array $all_subjects, array $all_countries ): string {
+    $html = '<div class="darsna-filters">';
+    $html .= '<div class="filter-row">';
+    $html .= $this->render_search_input();
+    $html .= $this->render_dropdown_filters( $all_subjects, $all_countries );
+    $html .= '</div>';
+    $html .= '<div class="filter-row">';
+    $html .= $this->render_clear_button();
+    $html .= '</div>';
+    $html .= '</div>';
+    return $html;
+  }
+
+  private function render_sidebar_filters( array $all_subjects, array $all_countries ): string {
+    $html = '<div class="sidebar-filters">';
+    $html .= '<div class="filter-group">';
+    $html .= '<label class="filter-label">Search Tutors</label>';
+    $html .= '<div class="search-wrapper">';
+    $html .= '<input type="text" id="tutor-search" class="filter-input search-input" placeholder="Search by tutor name or subject..." />';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '<div class="filter-group">';
+    $html .= '<label class="filter-label">Subject</label>';
+    $html .= '<div class="select-wrapper">';
+    $html .= '<select id="subject-filter" class="filter-select">';
+    $html .= '<option value="">All Subjects</option>';
+    foreach ( $all_subjects as $subject_name ) {
+      $html .= '<option value="' . esc_attr( $subject_name ) . '">' . esc_html( $subject_name ) . '</option>';
+    }
+    $html .= '</select>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '<div class="filter-group">';
+    $html .= '<label class="filter-label">Location</label>';
+    $html .= '<div class="select-wrapper">';
+    $html .= '<select id="location-filter" class="filter-select">';
+    $html .= '<option value="">All Locations</option>';
+    foreach ( $all_countries as $country_name ) {
+      $html .= '<option value="' . esc_attr( $country_name ) . '">' . esc_html( $country_name ) . '</option>';
+    }
+    $html .= '</select>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '<div class="filter-group">';
+    $html .= '<label class="filter-label">Hourly Rate</label>';
+    $html .= '<div class="price-range-options">';
+    $html .= '<label class="price-option"><input type="radio" name="price-range" value="" checked> Any rate</label>';
+    $html .= '<label class="price-option"><input type="radio" name="price-range" value="0-30"> Under $30/hr</label>';
+    $html .= '<label class="price-option"><input type="radio" name="price-range" value="30-50"> $30 - $50/hr</label>';
+    $html .= '<label class="price-option"><input type="radio" name="price-range" value="50-100"> $50 - $100/hr</label>';
+    $html .= '<label class="price-option"><input type="radio" name="price-range" value="100+"> $100+/hr</label>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '<div class="filter-group">';
+    $html .= '<button id="clear-filters" class="clear-filters-btn sidebar-clear-btn">Clear All Filters</button>';
+    $html .= '</div>';
+    
+    $html .= '</div>';
+    return $html;
+  }
+
+  private function render_sort_dropdown(): string {
+    return '<div class="sort-wrapper">' .
+           '<label for="sort-filter" class="sort-label">Sort by:</label>' .
+           '<select id="sort-filter" class="sort-select">' .
+           '<option value="relevance">Relevance</option>' .
+           '<option value="price-low">Price: Low to High</option>' .
+           '<option value="price-high">Price: High to Low</option>' .
+           '<option value="rating">Best Rating</option>' .
+           '<option value="name">Name A-Z</option>' .
+           '</select>' .
+           '</div>';
+  }
+
+  private function render_search_input(): string {
+    return '<input type="text" id="tutor-search" class="search-input" placeholder="Search tutors by name..." />';
+  }
+
+  private function render_dropdown_filters( array $all_subjects, array $all_countries ): string {
+    $html = '';
+    $html .= $this->render_subject_filter( $all_subjects );
+    $html .= $this->render_location_filter( $all_countries );
+    $html .= $this->render_price_filter();
+    $html .= $this->render_sort_filter();
+    return $html;
+  }
+
+  private function render_subject_filter( array $all_subjects ): string {
+    $html = '<select id="subject-filter" class="filter-select">' .
+            '<option value="">All Subjects</option>';
+    
+    foreach ( $all_subjects as $subject_name ) {
+      $html .= '<option value="' . esc_attr( $subject_name ) . '">' . esc_html( $subject_name ) . '</option>';
+    }
+    
+    $html .= '</select>';
+    return $html;
+  }
+
+  private function render_location_filter( array $all_countries ): string {
+    $html = '<select id="location-filter" class="filter-select">' .
+            '<option value="">All Locations</option>';
+    
+    foreach ( $all_countries as $country_name ) {
+      $html .= '<option value="' . esc_attr( $country_name ) . '">' . esc_html( $country_name ) . '</option>';
+    }
+    
+    $html .= '</select>';
+    return $html;
+  }
+
+  private function render_price_filter(): string {
+    return '<select id="price-filter" class="filter-select">' .
+           '<option value="">All Prices</option>' .
+           '<option value="0-30">$0 - $30</option>' .
+           '<option value="30-50">$30 - $50</option>' .
+           '<option value="50-100">$50 - $100</option>' .
+           '<option value="100+">$100+</option>' .
+           '</select>';
+  }
+
+  private function render_sort_filter(): string {
+    return '<select id="sort-filter" class="filter-select">' .
+           '<option value="name">Sort by Name</option>' .
+           '<option value="price-low">Price: Low to High</option>' .
+           '<option value="price-high">Price: High to Low</option>' .
+           '</select>';
+  }
+
+  private function render_clear_button(): string {
+    return '<button id="clear-filters" class="clear-filters-btn">Clear Filters</button>';
+  }
+
+  private function get_active_tutors( $page = 1, $per_page = 50 ) {
+    try {
+      if ( ! ( class_exists( 'OsAgentHelper' ) && method_exists( 'OsAgentHelper', 'get_allowed_active_agents' ) ) ) {
+
+        throw new Exception( 'LatePoint not available (OsAgentHelper::get_allowed_active_agents).' );
+      }
+      $agents = [];
+      if ( class_exists( 'OsAgentHelper' ) && method_exists( 'OsAgentHelper', 'get_allowed_active_agents' ) ) {
+        $agents = OsAgentHelper::get_allowed_active_agents();
+      }
+      if ( empty( $agents ) && class_exists( 'OsAgentHelper' ) && method_exists( 'OsAgentHelper', 'get_agents' ) ) {
+        $agents = OsAgentHelper::get_agents();
+      }
+      if ( empty( $agents ) ) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'latepoint_agents';
+        if ( $wpdb->get_var( "SHOW TABLES LIKE '$table_name'" ) == $table_name ) {
+          $agents = $wpdb->get_results( "SELECT * FROM $table_name WHERE status = 'active'" );
+        } else {
+
+        }
+      }
+      $tutors = [];
+      foreach ( (array) $agents as $agent ) {
+        try {
+          $tutor = $this->map_agent_to_tutor( $agent );
+          $tutors[] = $tutor;
+
+        } catch ( Exception $e ) {
+
+        }
+      }
+      $offset          = max( 0, ( $page - 1 ) * $per_page );
+      $paginated       = array_slice( $tutors, $offset, $per_page );
+      $total           = count( $tutors );
+      
+      return [
+        'tutors'   => $paginated,
+        'total'    => $total,
+        'page'     => (int) $page,
+        'per_page' => (int) $per_page,
+        'has_more' => ( $offset + $per_page ) < $total,
+      ];
+    } catch ( Exception $e ) {
+
+      return [ 'tutors' => [], 'total' => 0, 'page' => (int) $page, 'per_page' => (int) $per_page, 'has_more' => false ];
+    }
+  }
+  private function map_agent_to_tutor( $agent ) {
+
+    $tutor_data = (object) [
+      'id'              => $agent->id,
+      'first_name'      => $agent->first_name,
+      'last_name'       => $agent->last_name,
+      'email'           => $agent->email,
+      'bio'             => $agent->bio ?? '',
+      'wp_user_id'      => $agent->wp_user_id,
+      'avatar_image_id' => $agent->avatar_image_id ?? null,
+      'services'        => '',
+      'subjects'        => [],
+      'min_price'       => 0,
+      'max_price'       => 0,
+      'country'         => '',
+      'hourly_rate'     => '',
+    ];
+    
+    // Retrieve services and pricing from LatePoint connections
+    $service_names = [];
+    $service_prices = [];
+    if ( class_exists( 'OsConnectorHelper' ) && method_exists( 'OsConnectorHelper', 'get_connected_object_ids' ) ) {
+      // Get services connected to this agent
+      $connected_service_ids = [];
+      if ( class_exists( 'OsConnectorHelper' ) && method_exists( 'OsConnectorHelper', 'get_connected_object_ids' ) ) {
+        $connected_service_ids = (array) OsConnectorHelper::get_connected_object_ids( 'service_id', [ 'agent_id' => $agent->id ] );
+      }
+      $available_services = [];
+      
+      // Load service models for connected services
+      if ( $connected_service_ids && class_exists( 'OsServiceModel' ) ) {
+        foreach ( $connected_service_ids as $service_id ) {
+          $service_model = new OsServiceModel( $service_id );
+          if ( ! empty( $service_model->id ) ) {
+            $available_services[] = $service_model;
+
+          }
+        }
+      }
+      
+      // Extract service names and prices
+        foreach ( $available_services as $service_model ) {
+          // Safely access service name property
+          if (is_object($service_model) && isset($service_model->name)) {
+            $service_names[] = $service_model->name;
+          } else {
+            $service_names[] = '';
+          }
+          
+          // Try to get agent-specific pricing, fallback to service default
+          if ( class_exists( 'OsPricingHelper' ) && method_exists( 'OsPricingHelper', 'get_agent_service_price' ) ) {
+            $agent_price = OsPricingHelper::get_agent_service_price( $agent->id, $service_model->id );
+            if (is_object($service_model) && isset($service_model->charge_amount)) {
+              $service_prices[] = ( $agent_price !== null && $agent_price !== '' ) ? $agent_price : $service_model->charge_amount;
+            } else {
+              $service_prices[] = ( $agent_price !== null && $agent_price !== '' ) ? $agent_price : 0;
+            }
+          } else {
+            if (is_object($service_model) && isset($service_model->charge_amount)) {
+              $service_prices[] = $service_model->charge_amount;
+            } else {
+              $service_prices[] = 0;
+            }
+          }
+        }
+    } else {
+
+    }
+    
+    // Set subject names and calculate price range
+        $tutor_data->subjects_string = implode( ', ', $service_names );
+    if ( $service_prices ) {
+      $tutor_data->min_price = min( $service_prices );
+      $tutor_data->max_price = max( $service_prices );
+
+    }
+
+    // Retrieve additional tutor information from WordPress user meta
+    if ( $tutor_data->wp_user_id ) {
+      $tutor_data->hourly_rate = get_user_meta( $tutor_data->wp_user_id, 'tutor_hourly_rate', true );
+      $tutor_data->country = $this->get_user_country( $tutor_data->wp_user_id );
+      
+      // Get subjects from user meta and resolve to names
+      $stored_subject_ids = get_user_meta( $tutor_data->wp_user_id, 'tutor_subjects', true );
+      $tutor_data->subjects = is_array( $stored_subject_ids ) ? $this->get_service_names_by_ids( $stored_subject_ids ) : [];
+
+      // Use hourly rate as fallback pricing if no LatePoint prices available
+      if ( ! $tutor_data->min_price && ! $tutor_data->max_price && $tutor_data->hourly_rate !== '' ) {
+        $tutor_data->min_price = $tutor_data->max_price = (float) $tutor_data->hourly_rate;
+
+      }
+    } else {
+
+    }
+    
+    return $tutor_data;
+  }
+
+  /** Resolve service IDs to names using our custom Darsna integration */
+  private function get_service_names_by_ids( array $service_ids ): array {
+    if ( empty( $service_ids ) ) return [];
+
+    $service_names = [];
+
+    // Use Darsna integration for service names
+    if ( class_exists( 'Darsna_Registration_System' ) ) {
+      try {
+        $registration_handler = Darsna_Registration_System::get_instance();
+        if ( method_exists( $registration_handler, 'get_subjects' ) ) {
+                $available_subjects = (array) $registration_handler->get_subjects();
+          foreach ( $service_ids as $service_id ) {
+            foreach ( $available_subjects as $subject_data ) {
+              if ( isset( $subject_data['id'] ) && (int) $subject_data['id'] === (int) $service_id ) {
+                $service_names[] = $subject_data['name'];
+                break;
+              }
+            }
+          }
+        }
+      } catch ( Exception $e ) {}
+    }
+
+    return $service_names;
+  }
+
+  /** Country from user meta, friendly name if WooCommerce is present */
+  private function get_user_country( $user_id ) {
+    if ( ! $user_id ) return '';
+    
+    // Check primary country meta keys in order of preference
+    $code = get_user_meta( $user_id, 'billing_country', true );
+    if ( ! $code ) {
+      $code = get_user_meta( $user_id, 'country', true );
+    }
+    
+    if ( ! $code ) return '';
+
+    // Convert country code to friendly name if WooCommerce is available
+    if ( WC() && isset( WC()->countries ) ) {
+      $countries = WC()->countries->get_countries();
+      return isset( $countries[ $code ] ) ? $countries[ $code ] : $code;
+    }
+    return $code;
+  }
+
+  // ========================================
+  // FILTER DATA EXTRACTION
+  // ========================================
+
+  /** Extract unique subjects from all tutors for filter dropdown */
+  private function get_unique_subjects( array $tutors_data ): array {
+    $all_subjects = [];
+    
+    // Collect all subjects from all tutors
+    foreach ( $tutors_data as $tutor_data ) {
+      if ( ! empty( $tutor_data->subjects ) && is_array( $tutor_data->subjects ) ) {
+        $all_subjects = array_merge( $all_subjects, $tutor_data->subjects );
+      }
+    }
+    
+    // Remove duplicates and return sorted list
+    return array_unique( $all_subjects );
+  }
+
+  /** Extract unique countries from all tutors for filter dropdown */
+  private function get_unique_countries( array $tutors_data ): array {
+    $all_countries = [];
+    
+    // Collect all countries from all tutors
+    foreach ( $tutors_data as $tutor_data ) {
+      if ( ! empty( $tutor_data->country ) ) {
+        $all_countries[] = $tutor_data->country;
+      }
+    }
+    
+    // Remove duplicates and return sorted list
+    return array_unique( $all_countries );
+  }
+
+  // ========================================
+  // TUTOR DISPLAY RENDERING
+  // ========================================
+
+  /** Render the main tutors grid container and individual tutor cards */
+  private function render_tutors_grid( array $tutors_data ): string {
+    $html = '<div class="tutors-grid" id="tutors-grid">';
+    
+    // Generate individual tutor cards
+    foreach ( $tutors_data as $tutor_data ) {
+      $html .= $this->render_tutor_card( $tutor_data );
+    }
+    
+    $html .= '</div>';
+    return $html;
+  }
+
+  /** Render individual tutor card with avatar, details, and pricing */
+  private function render_tutor_card( $tutor_data ): string {
+    // Get tutor avatar image
+    $avatar_url = $this->get_tutor_avatar( $tutor_data );
+    
+    // Format pricing display
+    $price_display = $this->format_price_range( $tutor_data->min_price, $tutor_data->max_price );
+    
+    // Build subjects display string
+    $subjects_display = is_array( $tutor_data->subjects ) ? implode( ', ', $tutor_data->subjects ) : '';
+    $subjects_string = is_array( $tutor_data->subjects ) ? implode( ',', array_map( 'strtolower', $tutor_data->subjects ) ) : '';
+    
+    // Safely get bio content with fallback
+    $bio_content = wp_strip_all_tags( $tutor_data->bio );
+    
+    // Full name for data attributes
+    $full_name = $tutor_data->first_name . ' ' . $tutor_data->last_name;
+    
+    // Generate educational-focused tutor card
+    $experience_years = rand( 2, 10 ); // Placeholder for experience
+    $qualification = $this->get_tutor_qualification( $tutor_data );
+    
+    // Generate the complete educational tutor card HTML
+    return '<div class="tutor-card educational-card" data-tutor-id="' . esc_attr( $tutor_data->id ) . '" data-name="' . esc_attr( strtolower( $full_name ) ) . '" data-location="' . esc_attr( strtolower( $tutor_data->country ) ) . '" data-subjects="' . esc_attr( $subjects_string ) . '" data-price="' . esc_attr( $tutor_data->min_price ) . '">' .
+           '<div class="tutor-card-header">' .
+           '<div class="tutor-avatar">' .
+           '<img src="' . esc_url( $avatar_url ) . '" alt="' . esc_attr( $full_name ) . '" />' .
+           '</div>' .
+           '<div class="tutor-basic-info">' .
+           '<h3 class="tutor-name">' . esc_html( $full_name ) . '</h3>' .
+           '<p class="tutor-qualification">' . esc_html( $qualification ) . '</p>' .
+           '<div class="tutor-location">' .
+           '<span class="location-icon">📍</span>' .
+           '<span class="location-text">' . esc_html( $tutor_data->country ) . '</span>' .
+           '</div>' .
+           '</div>' .
+           '</div>' .
+           '<div class="tutor-card-body">' .
+           '<div class="tutor-subjects">' .
+           '<h4 class="subjects-title">Subjects</h4>' .
+           '<div class="subjects-list">' . esc_html( $subjects_display ) . '</div>' .
+           '</div>' .
+           ( $bio_content ? '<div class="tutor-bio">' . esc_html( wp_trim_words( $bio_content, 20 ) ) . '</div>' : '' ) .
+           '</div>' .
+           '<div class="tutor-card-footer">' .
+           '<div class="tutor-experience">' .
+           '<span class="experience-icon">🎓</span>' .
+           '<span class="experience-text">' . $experience_years . '+ years experience</span>' .
+           '</div>' .
+           '<div class="tutor-pricing">' .
+           '<span class="price-label">From</span>' .
+           '<span class="price-amount">' . $price_display . '/hr</span>' .
+           '</div>' .
+           '</div>' .
+           '<button class="book-tutor-btn book-now-btn" data-agent-id="' . esc_attr( $tutor_data->id ) . '">Book Session</button>' .
+           '</div>';
+  }
+
+  /** Get tutor qualification based on available data */
+  private function get_tutor_qualification( $tutor_data ): string {
+    // Try to get qualification from user meta or bio
+    if ( !empty( $tutor_data->bio ) ) {
+      // Look for common qualification keywords in bio
+      $bio_lower = strtolower( $tutor_data->bio );
+      if ( strpos( $bio_lower, 'phd' ) !== false || strpos( $bio_lower, 'doctorate' ) !== false ) {
+        return 'PhD Qualified';
+      } elseif ( strpos( $bio_lower, 'master' ) !== false || strpos( $bio_lower, 'msc' ) !== false || strpos( $bio_lower, 'ma ' ) !== false ) {
+        return 'Masters Degree';
+      } elseif ( strpos( $bio_lower, 'bachelor' ) !== false || strpos( $bio_lower, 'bsc' ) !== false || strpos( $bio_lower, 'ba ' ) !== false ) {
+        return 'Bachelor\'s Degree';
+      } elseif ( strpos( $bio_lower, 'certified' ) !== false || strpos( $bio_lower, 'certificate' ) !== false ) {
+        return 'Certified Tutor';
+      }
+    }
+    
+    // Default qualification
+    return 'Qualified Tutor';
+  }
+
+  /** Get tutor avatar URL, with fallback to default avatar */
+  private function get_tutor_avatar( $tutor_data ): string {
+    // Try to get custom avatar from LatePoint
+    if ( $tutor_data->avatar_image_id ) {
+      $custom_avatar = wp_get_attachment_image_url( $tutor_data->avatar_image_id, 'thumbnail' );
+      if ( $custom_avatar ) return $custom_avatar;
+    }
+    
+    // Fallback to WordPress Gravatar if user has WP account
+    if ( $tutor_data->wp_user_id ) {
+      return get_avatar_url( $tutor_data->wp_user_id, [ 'size' => 150 ] );
+    }
+    
+    // Final fallback to email-based Gravatar
+    return get_avatar_url( $tutor_data->email, [ 'size' => 150 ] );
+  }
+
+  /** Format price range for display, handling single prices and ranges */
+  private function format_price_range( $min_price, $max_price ): string {
+    // No pricing information available
+    if ( ! $min_price && ! $max_price ) {
+      return esc_html__( 'Contact for pricing', 'darsna-tutor-registration' );
+    }
+    
+    // Single price point (min equals max)
+    if ( $min_price == $max_price ) {
+      return wc_price( $min_price );
+    }
+    
+    // Price range (different min and max)
+    $min_formatted = wc_price( $min_price );
+    $max_formatted = wc_price( $max_price );
+    return $min_formatted . ' - ' . $max_formatted;
+  }
+
+  // ========================================
+  // AJAX HANDLERS
+  // ========================================
+
+  /** AJAX handler for infinite scroll pagination */
+  public function ajax_load_more_tutors() {
+    // Verify nonce for security
+    if ( ! wp_verify_nonce( $_POST['nonce'] ?? '', 'darsna_tutors_nonce' ) ) {
+      wp_send_json_error( 'Security check failed' );
+      return;
+    }
+
+    // Get pagination parameters from AJAX request
+    $page = max( 1, intval( $_POST['page'] ?? 1 ) );
+    $per_page = max( 1, min( 100, intval( $_POST['per_page'] ?? 50 ) ) );
+
+    // Retrieve tutors for the requested page
+    $tutors_result = $this->get_active_tutors( $page, $per_page );
+    
+    // Generate HTML for the new tutors
+    $tutors_html = '';
+    foreach ( $tutors_result['tutors'] as $tutor_data ) {
+      $tutors_html .= $this->render_tutor_card( $tutor_data );
+    }
+
+    // Return JSON response with tutor HTML and pagination info
+    wp_send_json_success( [
+      'html'     => $tutors_html,
+      'has_more' => $tutors_result['has_more'],
+      'page'     => $tutors_result['page'],
+      'total'    => $tutors_result['total'],
+    ] );
+  }
+
+  /** Format a single price value for display */
+  private function format_single_price( $price ): string {
+    return wc_price( $price );
+  }
+}

@@ -1,0 +1,289 @@
+/**
+ * Darsna Admin Dashboard Styles
+ * Version: 4.0.0
+ */
+
+/* Dashboard Layout */
+.darsna-dashboard {
+    max-width: 1200px;
+}
+
+/* Stats Grid */
+.darsna-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin: 20px 0 30px;
+}
+
+.stat-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+}
+
+.stat-card.highlight {
+    border-color: #f0ad4e;
+    background: #fcf8e3;
+}
+
+.stat-card h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #666;
+    text-transform: uppercase;
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #23282d;
+    margin: 0;
+}
+
+.stat-meta {
+    margin: 5px 0 0;
+    font-size: 14px;
+    color: #666;
+}
+
+/* Quick Links */
+.darsna-quick-links {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.darsna-quick-links h2 {
+    margin: 0 0 15px;
+    font-size: 18px;
+}
+
+.darsna-quick-links .button {
+    margin-right: 10px;
+    margin-bottom: 10px;
+}
+
+/* Payouts Page */
+.darsna-payouts {
+    max-width: 100%;
+}
+
+/* Filters */
+.filter-select {
+    margin-right: 10px;
+}
+
+/* Summary Box */
+.payout-summary {
+    background: #f1f1f1;
+    padding: 15px;
+    margin: 20px 0;
+}
+
+.payout-summary h3 {
+    margin: 0 0 10px;
+    font-size: 16px;
+}
+
+.payout-summary p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-badge.paid {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.unpaid {
+    background: #fff3cd;
+    color: #856404;
+}
+
+/* Modal */
+.darsna-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 160000;
+}
+
+/* Hidden modal */
+.darsna-modal.hidden {
+    display: none;
+}
+
+.darsna-modal.visible {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Commission rate input */
+#commission_rate {
+    width: 100px;
+}
+
+.darsna-modal .modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    padding: 20px;
+    border-radius: 4px;
+    width: 90%;
+    max-width: 500px;
+}
+
+.darsna-modal h3 {
+    margin: 0 0 20px;
+    font-size: 18px;
+}
+
+.darsna-modal label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.darsna-modal input[type="text"] {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.darsna-modal .submit {
+    margin-top: 20px;
+    text-align: right;
+}
+
+.darsna-modal .button {
+    margin-left: 10px;
+}
+
+/* Pending Tutors Table */
+.wp-list-table .column-actions {
+    width: 200px;
+}
+
+/* Settings Page */
+.form-table th {
+    width: 200px;
+}
+
+/* Responsive Tables */
+@media (max-width: 782px) {
+    .darsna-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .wp-list-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .filter-select {
+        display: block;
+        width: 100%;
+        margin: 0 0 10px;
+    }
+}
+
+/* Checkbox Column */
+.check-column {
+    width: 2.2em;
+    padding: 8px 0 0 0;
+    vertical-align: top;
+}
+
+.check-column input {
+    margin: 0;
+}
+
+/* Export Button */
+#export-payouts {
+    margin-left: 10px;
+}
+
+/* Modal Styles */
+#mark-paid-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#payout-reference {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+#select-all-payouts {
+    margin-right: 5px;
+}
+
+#bulk-mark-paid {
+    margin-left: 10px;
+}
+
+/* Action Buttons */
+.button-small {
+    font-size: 12px;
+    line-height: 24px;
+    height: 26px;
+    padding: 0 8px;
+}
+
+/* Loading State */
+.darsna-loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Success/Error Messages */
+.darsna-message {
+    padding: 10px 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.darsna-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.darsna-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
